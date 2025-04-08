@@ -1,3 +1,4 @@
 # Ignorar arquivos do banco de dados e configurações locais
 checkin.db
 qrcodes/
+.env

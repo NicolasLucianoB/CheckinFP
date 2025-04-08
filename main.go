@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,47 +8,59 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip2/go-qrcode"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
-var db *sql.DB
+var db *gorm.DB
+
+type VolunteerCheckin struct {
+	ID          uint      `gorm:"primaryKey"`
+	Name        string    `gorm:"not null"`
+	CheckinTime time.Time `gorm:"autoCreateTime"`
+}
 
 func main() {
-	var err error
-	db, err = sql.Open("sqlite3", "checkin.db")
+	err := godotenv.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error loading .env file")
 	}
-	defer db.Close()
-	createTable()
+
+	db := initDB()
+	log.Println("Banco conectado com sucesso:", db)
 
 	r := gin.Default()
 	r.GET("/generate/:name", generateQRCode)
 	r.GET("/checkin/:name", checkIn)
 
-	// r.Run(":8080") localhost
 	r.Run("0.0.0.0:8080") // rede local
 }
 
-func createTable() {
-	query := `CREATE TABLE IF NOT EXISTS checkins (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		arrival_time DATETIME NOT NULL
-	)`
-	_, err := db.Exec(query)
+func initDB() *gorm.DB {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASS"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"),
+	)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}
+
+	db.AutoMigrate(&VolunteerCheckin{})
+	return db
 }
 
 func generateQRCode(c *gin.Context) {
 	name := c.Param("name")
 
-	// serverIP := "" // Troque pelo seu IP local
-	// scanURL := fmt.Sprintf("http://%s:8080/checkin/%s", serverIP, name)
-	scanURL := fmt.Sprintf("http://localhost:8080/checkin/%s", name) //localhost
+	scanURL := fmt.Sprintf("http://127.0.0.1:8080/checkin/%s", name)
 
 	os.MkdirAll("qrcodes", os.ModePerm)
 	filename := fmt.Sprintf("qrcodes/%s.png", name)
@@ -69,18 +80,15 @@ func generateQRCode(c *gin.Context) {
 
 func checkIn(c *gin.Context) {
 	name := c.Param("name")
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	_, err := db.Exec("INSERT INTO checkins (name, arrival_time) VALUES (?, ?)", name, timestamp)
-	if err != nil {
+	checkin := VolunteerCheckin{Name: name}
+	if err := db.Create(&checkin).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check in"})
 		return
 	}
 
-	log.Printf("Check-in realizado com sucesso: %s às %s", name, timestamp)
+	log.Printf("Check-in realizado com sucesso: %s", name)
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "Check-in successful",
-		"name":         name,
-		"arrival_time": timestamp,
+		"message": "Check-in successful",
+		"name":    name,
 	})
 }
