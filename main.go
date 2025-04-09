@@ -26,7 +26,7 @@ type Volunteer struct {
 
 type VolunteerCheckin struct {
 	ID          uint      `gorm:"primaryKey"`
-	Name        string    `gorm:"not null"`
+	VolunteerID uint      `gorm:"not null"`
 	CheckinTime time.Time `gorm:"autoCreateTime"`
 }
 
@@ -46,8 +46,7 @@ func main() {
 	r.GET("/ranking", checkinRanking)
 	r.POST("/volunteers", createVolunteer)
 	r.GET("/volunteers", listVolunteers)
-	r.POST("/seed/volunteers", seedVolunteers)
-	r.DELETE("/seed/volunteers", deleteFakeVolunteers)
+	r.GET("/volunteers/:id", getVolunteerByID)
 
 	r.Run("0.0.0.0:8080") // rede local
 }
@@ -102,7 +101,7 @@ func checkIn(c *gin.Context) {
 		return
 	}
 
-	checkin := VolunteerCheckin{Name: volunteer.Name}
+	checkin := VolunteerCheckin{VolunteerID: volunteer.ID}
 	if err := db.Create(&checkin).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar o check-in"})
 		return
@@ -139,7 +138,7 @@ func checkIn(c *gin.Context) {
 		<body>
 			<div class="message">
 				<h1>✅ Check-in realizado com sucesso!</h1>
-				<p>Olá, <strong>%s</strong>! Seu horário de chegada foi registrado.</p>
+				<p>A paz, <strong>%s</strong>! Vamos servir com alegria.</p>
 			</div>
 		</body>
 		</html>
@@ -157,15 +156,17 @@ func listCheckins(c *gin.Context) {
 
 func checkinRanking(c *gin.Context) {
 	type Result struct {
+		ID            uint
 		Name          string
 		TotalCheckins int
 	}
 
 	var results []Result
 
-	err := db.Model(&VolunteerCheckin{}).
-		Select("name, COUNT(*) as total_checkins").
-		Group("name").
+	err := db.Table("volunteer_checkins").
+		Select("volunteers.id, volunteers.name, COUNT(volunteer_checkins.id) as total_checkins").
+		Joins("JOIN volunteers ON volunteers.id = volunteer_checkins.volunteer_id").
+		Group("volunteers.id, volunteers.name").
 		Order("total_checkins DESC").
 		Scan(&results).Error
 
@@ -216,38 +217,48 @@ func listVolunteers(c *gin.Context) {
 	c.JSON(http.StatusOK, volunteers)
 }
 
-func seedVolunteers(c *gin.Context) {
-	fakeVolunteers := []Volunteer{
-		{Name: "Teste_01", Role: "Câmera"},
-		{Name: "Teste_02", Role: "Som"},
-		{Name: "Teste_03", Role: "Direção"},
-		{Name: "Teste_04", Role: "Projeção"},
-		{Name: "Teste_05", Role: "Transmissão"},
-	}
+func getVolunteerByID(c *gin.Context) {
+	id := c.Param("id")
 
-	for i := range fakeVolunteers {
-		v := &fakeVolunteers[i]
-		if err := db.Create(v).Error; err != nil {
-			log.Printf("Erro ao criar voluntário %s: %v", v.Name, err)
-			continue
-		}
-
-		scanURL := fmt.Sprintf("http://%s:8080/checkin/%d", os.Getenv("APP_HOST"), v.ID)
-		log.Printf("QR Code gerado com URL: %s", scanURL)
-
-		os.MkdirAll("qrcodes", os.ModePerm)
-		filename := fmt.Sprintf("qrcodes/%d.png", v.ID)
-		qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Voluntários de teste criados com sucesso e QR Codes gerados!"})
-}
-
-func deleteFakeVolunteers(c *gin.Context) {
-	if err := db.Where("name LIKE ?", "Teste_%").Delete(&Volunteer{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao remover voluntários de teste"})
+	var volunteer Volunteer
+	if err := db.First(&volunteer, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Voluntário não encontrado"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Voluntários de teste removidos com sucesso!"})
+	var checkins []VolunteerCheckin
+	if err := db.Where("volunteer_id = ?", volunteer.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar check-ins"})
+		return
+	}
+
+	var firstCheckin, lastCheckin *time.Time
+	var checkinsThisMonth int
+
+	if len(checkins) > 0 {
+		first := checkins[len(checkins)-1].CheckinTime
+		last := checkins[0].CheckinTime
+		firstCheckin = &first
+		lastCheckin = &last
+
+		currentYear, currentMonth, _ := time.Now().Date()
+		for _, ci := range checkins {
+			y, m, _ := ci.CheckinTime.Date()
+			if y == currentYear && m == currentMonth {
+				checkinsThisMonth++
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":                  volunteer.ID,
+		"name":                volunteer.Name,
+		"role":                volunteer.Role,
+		"created_at":          volunteer.CreatedAt,
+		"checkins":            checkins,
+		"total_checkins":      len(checkins),
+		"first_checkin":       firstCheckin,
+		"last_checkin":        lastCheckin,
+		"checkins_this_month": checkinsThisMonth,
+	})
 }
