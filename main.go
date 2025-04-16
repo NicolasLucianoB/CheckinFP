@@ -5,12 +5,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip2/go-qrcode"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -30,6 +33,82 @@ type VolunteerCheckin struct {
 	CheckinTime time.Time `gorm:"autoCreateTime"`
 }
 
+type User struct {
+	ID        uint   `gorm:"primaryKey"`
+	Name      string `gorm:"not null"`
+	Email     string `gorm:"not null;unique"`
+	Password  string `gorm:"not null"`
+	CreatedAt time.Time
+}
+
+type LoginInput struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+var jwtKey = []byte("sua_chave_secreta")
+
+func generateToken(userID uint) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtKey)
+}
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func checkPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func signUp(c *gin.Context) {
+	var input User
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+		return
+	}
+	hashedPassword, err := hashPassword(input.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criptografar senha"})
+		return
+	}
+	user := User{Name: input.Name, Email: input.Email, Password: hashedPassword}
+	if err := db.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar usuário"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Usuário criado com sucesso"})
+}
+
+func login(c *gin.Context) {
+	var input LoginInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+		return
+	}
+	var user User
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não encontrado"})
+		return
+	}
+	if !checkPasswordHash(input.Password, user.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Senha incorreta"})
+		return
+	}
+	token, err := generateToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -40,13 +119,18 @@ func main() {
 	log.Println("Banco conectado com sucesso:", db)
 
 	r := gin.Default()
-	r.GET("/generate/:id", generateQRCode)
-	r.GET("/checkin/:id", checkIn)
-	r.GET("/checkins", listCheckins)
-	r.GET("/ranking", checkinRanking)
-	r.POST("/volunteers", createVolunteer)
-	r.GET("/volunteers", listVolunteers)
-	r.GET("/volunteers/:id", getVolunteerByID)
+	auth := r.Group("/")
+	auth.Use(AuthMiddleware())
+
+	auth.GET("/generate/:id", generateQRCode)
+	auth.GET("/checkin/:id", checkIn)
+	auth.GET("/checkins", listCheckins)
+	auth.GET("/ranking", checkinRanking)
+	auth.POST("/volunteers", createVolunteer)
+	auth.GET("/volunteers", listVolunteers)
+	auth.GET("/volunteers/:id", getVolunteerByID)
+	r.POST("/signup", signUp)
+	r.POST("/login", login)
 
 	r.Run("0.0.0.0:8080") // rede local
 }
@@ -67,6 +151,7 @@ func initDB() *gorm.DB {
 
 	db.AutoMigrate(&VolunteerCheckin{})
 	db.AutoMigrate(&Volunteer{})
+	db.AutoMigrate(&User{})
 	return db
 }
 
@@ -261,4 +346,30 @@ func getVolunteerByID(c *gin.Context) {
 		"last_checkin":        lastCheckin,
 		"checkins_this_month": checkinsThisMonth,
 	})
+}
+
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := c.GetHeader("Authorization")
+
+		if tokenString == "" || !strings.HasPrefix(tokenString, "Bearer ") {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token não fornecido ou mal formatado"})
+			c.Abort()
+			return
+		}
+
+		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }

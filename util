@@ -1,7 +1,0 @@
-// Para testar o servidor, execute o seguinte comando:
-// go run main.go
-// Criar um QR Code para o voluntário
-// http://127.0.0.1:8080/generate/NOME_DO_VOLUNTARIO
-// Escanear o QR Code
-// página de check-in
-// http://127.0.0.1:8080/checkin/NOME_DO_VOLUNTARIO
