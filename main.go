@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
@@ -80,10 +81,10 @@ func signUp(c *gin.Context) {
 	}
 	user := User{Name: input.Name, Email: input.Email, Password: hashedPassword}
 	if err := db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar usuário"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar voluntário"})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Usuário criado com sucesso"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Voluntário criado com sucesso"})
 }
 
 func login(c *gin.Context) {
@@ -94,7 +95,7 @@ func login(c *gin.Context) {
 	}
 	var user User
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não encontrado"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Voluntário não encontrado"})
 		return
 	}
 	if !checkPasswordHash(input.Password, user.Password) {
@@ -106,7 +107,14 @@ func login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+		"user": gin.H{
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
+		},
+	})
 }
 
 func main() {
@@ -119,6 +127,12 @@ func main() {
 	log.Println("Banco conectado com sucesso:", db)
 
 	r := gin.Default()
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 	auth := r.Group("/")
 	auth.Use(AuthMiddleware())
 
