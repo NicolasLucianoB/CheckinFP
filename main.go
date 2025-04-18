@@ -74,6 +74,10 @@ func signUp(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
 		return
 	}
+	if len(strings.Fields(input.Name)) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Por favor, informe seu nome completo, varão(oa)"})
+		return
+	}
 	hashedPassword, err := hashPassword(input.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criptografar senha"})
