@@ -28,6 +28,35 @@ type Volunteer struct {
 	CreatedAt time.Time
 }
 
+func getMe(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	userID := uint(claims["user_id"].(float64))
+
+	var user User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":    user.ID,
+		"name":  user.Name,
+		"email": user.Email,
+	})
+}
+
 type VolunteerCheckin struct {
 	ID          uint      `gorm:"primaryKey"`
 	VolunteerID uint      `gorm:"not null"`
@@ -147,6 +176,7 @@ func main() {
 	auth.POST("/volunteers", createVolunteer)
 	auth.GET("/volunteers", listVolunteers)
 	auth.GET("/volunteers/:id", getVolunteerByID)
+	auth.GET("/me", getMe)
 	r.POST("/signup", signUp)
 	r.POST("/login", login)
 
