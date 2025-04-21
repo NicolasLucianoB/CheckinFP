@@ -1,4 +1,4 @@
-module checkin
+module github.com/nicolaslucianob/checkinfp
 
 go 1.23.5
 

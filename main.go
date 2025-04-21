@@ -169,8 +169,8 @@ func main() {
 	auth := r.Group("/")
 	auth.Use(AuthMiddleware())
 
-	auth.GET("/generate/:id", generateQRCode)
-	auth.GET("/checkin/:id", checkIn)
+	auth.GET("/generate/qr", generateQRCode)
+	auth.POST("/checkin", checkIn)
 	auth.GET("/checkins", listCheckins)
 	auth.GET("/ranking", checkinRanking)
 	auth.POST("/volunteers", createVolunteer)
@@ -202,13 +202,11 @@ func initDB() *gorm.DB {
 }
 
 func generateQRCode(c *gin.Context) {
-	id := c.Param("id")
-
-	scanURL := fmt.Sprintf("http://%s:8080/checkin/%s", os.Getenv("APP_HOST"), id)
+	scanURL := fmt.Sprintf("http://%s:8080/checkin", os.Getenv("APP_HOST"))
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
 	os.MkdirAll("qrcodes", os.ModePerm)
-	filename := fmt.Sprintf("qrcodes/%s.png", id)
+	filename := "qrcodes/daily_checkin.png"
 
 	err := qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
 	if err != nil {
@@ -224,10 +222,20 @@ func generateQRCode(c *gin.Context) {
 }
 
 func checkIn(c *gin.Context) {
-	id := c.Param("id")
+	authHeader := c.GetHeader("Authorization")
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+		return
+	}
+	claims := token.Claims.(jwt.MapClaims)
+	userID := uint(claims["user_id"].(float64))
 
 	var volunteer Volunteer
-	if err := db.First(&volunteer, id).Error; err != nil {
+	if err := db.First(&volunteer, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Voluntário não encontrado"})
 		return
 	}
@@ -239,41 +247,9 @@ func checkIn(c *gin.Context) {
 	}
 
 	log.Printf("Check-in realizado com sucesso: %s", volunteer.Name)
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(fmt.Sprintf(`
-		<!DOCTYPE html>
-		<html lang="pt-BR">
-		<head>
-			<meta charset="UTF-8">
-			<title>Check-in realizado</title>
-			<style>
-				body {
-					font-family: Arial, sans-serif;
-					background-color: #f0f0f0;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					height: 100vh;
-				}
-				.message {
-					background: white;
-					padding: 40px;
-					border-radius: 10px;
-					box-shadow: 0 0 15px rgba(0,0,0,0.1);
-					text-align: center;
-				}
-				.message h1 {
-					color: #28a745;
-				}
-			</style>
-		</head>
-		<body>
-			<div class="message">
-				<h1>✅ Check-in realizado com sucesso!</h1>
-				<p>A paz, <strong>%s</strong>! Vamos servir com alegria.</p>
-			</div>
-		</body>
-		</html>
-	`, volunteer.Name)))
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("✅ Check-in realizado com sucesso! A paz, %s!", volunteer.Name),
+	})
 }
 
 func listCheckins(c *gin.Context) {
