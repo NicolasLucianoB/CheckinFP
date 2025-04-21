@@ -37,7 +37,7 @@ func getMe(c *gin.Context) {
 	})
 
 	if err != nil || !token.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
 		return
 	}
 
@@ -46,7 +46,7 @@ func getMe(c *gin.Context) {
 
 	var user User
 	if err := db.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "*Voluntário não encontrado"})
 		return
 	}
 
@@ -100,21 +100,21 @@ func checkPasswordHash(password, hash string) bool {
 func signUp(c *gin.Context) {
 	var input User
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Dados inválidos"})
 		return
 	}
 	if len(strings.Fields(input.Name)) < 2 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Por favor, informe seu nome completo, varão(oa)"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "*Por favor, informe seu nome completo, varão(oa)"})
 		return
 	}
 	hashedPassword, err := hashPassword(input.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criptografar senha"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criptografar senha"})
 		return
 	}
 	user := User{Name: input.Name, Email: input.Email, Password: hashedPassword}
 	if err := db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar voluntário"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criar voluntário"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Voluntário criado com sucesso"})
@@ -123,21 +123,21 @@ func signUp(c *gin.Context) {
 func login(c *gin.Context) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Dados inválidos"})
 		return
 	}
 	var user User
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Voluntário não encontrado"})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "*Email não encontrado, irmão(ã)"})
 		return
 	}
 	if !checkPasswordHash(input.Password, user.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Senha incorreta"})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "*Senha errada, irmão(ã)"})
 		return
 	}
 	token, err := generateToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar token"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -161,7 +161,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://" + os.Getenv("APP_HOST") + ":3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -212,7 +212,7 @@ func generateQRCode(c *gin.Context) {
 
 	err := qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate QR Code"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to generate QR Code"})
 		return
 	}
 
@@ -279,7 +279,7 @@ func checkIn(c *gin.Context) {
 func listCheckins(c *gin.Context) {
 	var checkins []VolunteerCheckin
 	if err := db.Find(&checkins).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve check-ins"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to retrieve check-ins"})
 		return
 	}
 	c.JSON(http.StatusOK, checkins)
@@ -302,7 +302,7 @@ func checkinRanking(c *gin.Context) {
 		Scan(&results).Error
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate ranking"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to generate ranking"})
 		return
 	}
 
@@ -312,12 +312,12 @@ func checkinRanking(c *gin.Context) {
 func createVolunteer(c *gin.Context) {
 	var volunteer Volunteer
 	if err := c.ShouldBindJSON(&volunteer); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Dados inválidos"})
 		return
 	}
 
 	if err := db.Create(&volunteer).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Não foi possível cadastrar o voluntário"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Não foi possível cadastrar o voluntário"})
 		return
 	}
 
@@ -341,7 +341,7 @@ func listVolunteers(c *gin.Context) {
 	}
 
 	if err := query.Find(&volunteers).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar voluntários"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar voluntários"})
 		return
 	}
 
@@ -353,13 +353,13 @@ func getVolunteerByID(c *gin.Context) {
 
 	var volunteer Volunteer
 	if err := db.First(&volunteer, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Voluntário não encontrado"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "Voluntário não encontrado"})
 		return
 	}
 
 	var checkins []VolunteerCheckin
 	if err := db.Where("volunteer_id = ?", volunteer.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar check-ins"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
 		return
 	}
 
@@ -399,7 +399,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		tokenString := c.GetHeader("Authorization")
 
 		if tokenString == "" || !strings.HasPrefix(tokenString, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token não fornecido ou mal formatado"})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Token não fornecido ou mal formatado"})
 			c.Abort()
 			return
 		}
@@ -411,7 +411,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
 			c.Abort()
 			return
 		}
