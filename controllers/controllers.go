@@ -288,3 +288,74 @@ func CheckinRanking(c *gin.Context, db *gorm.DB) {
 
 	c.JSON(http.StatusOK, results)
 }
+
+func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+
+	var volunteer models.Volunteer
+	if err := db.First(&volunteer, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Voluntário não encontrado"})
+		return
+	}
+
+	var checkins []models.VolunteerCheckin
+	if err := db.Where("volunteer_id = ?", volunteer.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
+		return
+	}
+
+	var firstCheckin, lastCheckin *time.Time
+	var checkinsThisMonth int
+
+	if len(checkins) > 0 {
+		first := checkins[len(checkins)-1].CheckinTime
+		last := checkins[0].CheckinTime
+		firstCheckin = &first
+		lastCheckin = &last
+
+		currentYear, currentMonth, _ := time.Now().Date()
+		for _, ci := range checkins {
+			y, m, _ := ci.CheckinTime.Date()
+			if y == currentYear && m == currentMonth {
+				checkinsThisMonth++
+			}
+		}
+	}
+
+	type RankingEntry struct {
+		ID            uint
+		Name          string
+		TotalCheckins int
+	}
+
+	var ranking []RankingEntry
+	if err := db.Table("volunteer_checkins").
+		Select("volunteers.id, volunteers.name, COUNT(volunteer_checkins.id) as total_checkins").
+		Joins("JOIN volunteers ON volunteers.id = volunteer_checkins.volunteer_id").
+		Group("volunteers.id, volunteers.name").
+		Order("total_checkins DESC").
+		Scan(&ranking).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar ranking"})
+		return
+	}
+
+	var rankingPosition int
+	for i, entry := range ranking {
+		if entry.ID == volunteer.ID {
+			rankingPosition = i + 1
+			break
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":                  volunteer.ID,
+		"name":                volunteer.Name,
+		"role":                volunteer.Role,
+		"created_at":          volunteer.CreatedAt,
+		"total_checkins":      len(checkins),
+		"checkins_this_month": checkinsThisMonth,
+		"first_checkin":       firstCheckin,
+		"last_checkin":        lastCheckin,
+		"ranking_position":    rankingPosition,
+	})
+}

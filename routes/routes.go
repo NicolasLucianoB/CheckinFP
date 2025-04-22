@@ -44,4 +44,8 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	r.POST("/login", func(c *gin.Context) {
 		controllers.Login(c, db)
 	})
+
+	auth.GET("/dashboard", func(c *gin.Context) {
+		controllers.GetVolunteerDashboardData(c, db)
+	})
 }
