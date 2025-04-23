@@ -17,7 +17,9 @@ import (
 var db *gorm.DB
 
 func main() {
-	_ = godotenv.Load() // teste no local
+	if os.Getenv("GIN_MODE") != "release" {
+		_ = godotenv.Load()
+	}
 
 	db = initDB()
 	log.Println("Banco conectado com sucesso:", db)
