@@ -17,10 +17,7 @@ import (
 var db *gorm.DB
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	_ = godotenv.Load() // teste no local
 
 	db = initDB()
 	log.Println("Banco conectado com sucesso:", db)
