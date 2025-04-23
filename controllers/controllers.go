@@ -290,10 +290,20 @@ func CheckinRanking(c *gin.Context, db *gorm.DB) {
 }
 
 func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
+	authHeader := c.GetHeader("Authorization")
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
+		return
+	}
+	claims := token.Claims.(jwt.MapClaims)
+	userID := uint(claims["user_id"].(float64))
 
 	var volunteer models.Volunteer
-	if err := db.First(&volunteer, id).Error; err != nil {
+	if err := db.First(&volunteer, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Voluntário não encontrado"})
 		return
 	}
