@@ -8,44 +8,30 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
+	// Public Routes
+	r.POST("/signup", func(c *gin.Context) { controllers.SignUp(c, db) })
+	r.POST("/login", func(c *gin.Context) { controllers.Login(c, db) })
+
+	// Protected Routes
 	auth := r.Group("/")
 	auth.Use(middlewares.AuthMiddleware())
 
-	auth.GET("/generate/qr", func(c *gin.Context) {
-		controllers.GenerateQRCode(c)
-	})
-	auth.GET("/me", func(c *gin.Context) {
-		controllers.GetMe(c, db)
-	})
+	// QR Code
+	auth.GET("/generate/qr", controllers.GenerateQRCode)
 
-	auth.POST("/checkin", func(c *gin.Context) {
-		controllers.CheckIn(c, db)
-	})
-	auth.GET("/checkins", func(c *gin.Context) {
-		controllers.ListCheckins(c, db)
-	})
-	auth.GET("/ranking", func(c *gin.Context) {
-		controllers.CheckinRanking(c, db)
-	})
+	// Authenticated User Info
+	auth.GET("/me", func(c *gin.Context) { controllers.GetMe(c, db) })
 
-	auth.POST("/volunteers", func(c *gin.Context) {
-		controllers.CreateVolunteer(c, db)
-	})
-	auth.GET("/volunteers", func(c *gin.Context) {
-		controllers.ListVolunteers(c, db)
-	})
-	auth.GET("/volunteers/:id", func(c *gin.Context) {
-		controllers.GetVolunteerByID(c, db)
-	})
+	// Check-in
+	auth.POST("/checkin", func(c *gin.Context) { controllers.CheckIn(c, db) })
+	auth.GET("/checkins", func(c *gin.Context) { controllers.ListCheckins(c, db) })
+	auth.GET("/ranking", func(c *gin.Context) { controllers.CheckinRanking(c, db) })
 
-	r.POST("/signup", func(c *gin.Context) {
-		controllers.SignUp(c, db)
-	})
-	r.POST("/login", func(c *gin.Context) {
-		controllers.Login(c, db)
-	})
+	// Volunteers
+	auth.POST("/volunteers", func(c *gin.Context) { controllers.CreateVolunteer(c, db) })
+	auth.GET("/volunteers", func(c *gin.Context) { controllers.ListVolunteers(c, db) })
+	auth.GET("/volunteers/:id", func(c *gin.Context) { controllers.GetVolunteerByID(c, db) })
 
-	auth.GET("/dashboard", func(c *gin.Context) {
-		controllers.GetVolunteerDashboardData(c, db)
-	})
+	// Dashboard
+	auth.GET("/dashboard", func(c *gin.Context) { controllers.GetVolunteerDashboardData(c, db) })
 }
