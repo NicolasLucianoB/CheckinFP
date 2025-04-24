@@ -11,6 +11,7 @@ import (
 	"github.com/nicolaslucianob/checkinfp/models"
 	"github.com/nicolaslucianob/checkinfp/routes"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -43,15 +44,34 @@ func main() {
 }
 
 func initDB() *gorm.DB {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASS"),
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_NAME"),
-	)
+	dbDriver := os.Getenv("DB_DRIVER")
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	var dsn string
+	var dialector gorm.Dialector
+
+	if dbDriver == "postgres" {
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+			os.Getenv("DB_HOST"),
+			os.Getenv("DB_USER"),
+			os.Getenv("DB_PASS"),
+			os.Getenv("DB_NAME"),
+			os.Getenv("DB_PORT"),
+		)
+		dialector = postgres.Open(dsn)
+	} else {
+		dsn = fmt.Sprintf(
+			"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+			os.Getenv("DB_USER"),
+			os.Getenv("DB_PASS"),
+			os.Getenv("DB_HOST"),
+			os.Getenv("DB_PORT"),
+			os.Getenv("DB_NAME"),
+		)
+		dialector = mysql.Open(dsn)
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}

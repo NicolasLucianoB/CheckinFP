@@ -3,12 +3,20 @@ module github.com/nicolaslucianob/checkinfp
 go 1.23.5
 
 require (
+	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-gonic/gin v1.10.0
-	github.com/mattn/go-sqlite3 v1.14.25
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	gorm.io/driver/postgres v1.5.11
 )
 
-require github.com/gin-contrib/cors v1.7.5 // indirect
+require (
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.5.5 // indirect
+	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
+)
 
 require github.com/golang-jwt/jwt/v5 v5.2.2 // direct
 
@@ -17,7 +25,6 @@ require (
 	github.com/bytedance/sonic v1.13.2 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
-	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
