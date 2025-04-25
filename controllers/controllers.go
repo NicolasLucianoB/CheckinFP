@@ -206,7 +206,13 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 }
 
 func GenerateQRCode(c *gin.Context) {
-	scanURL := fmt.Sprintf("http://%s:8080/checkin", os.Getenv("APP_HOST"))
+	scheme := "https"
+	host := os.Getenv("APP_HOST")
+	if os.Getenv("ENV") == "development" {
+		scheme = "http"
+		host = "localhost:8080"
+	}
+	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, host)
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
 	os.MkdirAll("qrcodes", os.ModePerm)
