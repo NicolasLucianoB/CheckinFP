@@ -17,6 +17,7 @@ type User struct {
 	Name      string `gorm:"not null"`
 	Email     string `gorm:"not null;unique"`
 	Password  string `gorm:"not null"`
+	IsAdmin   bool   `json:"is_admin" gorm:"default:false"`
 	CreatedAt time.Time
 }
 
@@ -52,6 +53,9 @@ func InitDB() {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}
 
-	database.AutoMigrate(&User{}, &Volunteer{}, &VolunteerCheckin{})
+	err = database.AutoMigrate(&User{}, &Volunteer{}, &VolunteerCheckin{})
+	if err != nil {
+		log.Fatal("Erro ao fazer AutoMigrate:", err)
+	}
 	DB = database
 }

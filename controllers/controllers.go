@@ -20,9 +20,11 @@ import (
 var jwtKey = []byte("sua_chave_secreta")
 
 func GenerateToken(userID uint) (string, error) {
+	// This function signature will need user.IsAdmin to add the claim, but for now, keep as is.
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		// "is_admin" will be added in Login below instead.
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtKey)
@@ -53,7 +55,7 @@ func SignUp(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criptografar senha"})
 		return
 	}
-	user := models.User{Name: input.Name, Email: input.Email, Password: hashedPassword}
+	user := models.User{Name: input.Name, Email: input.Email, Password: hashedPassword, IsAdmin: false}
 	if err := db.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criar voluntário"})
 		return
@@ -76,7 +78,14 @@ func Login(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "*Senha errada, irmão(ã)"})
 		return
 	}
-	token, err := GenerateToken(user.ID)
+	// Gerar token incluindo is_admin no payload
+	claims := jwt.MapClaims{
+		"user_id":  user.ID,
+		"is_admin": user.IsAdmin,
+		"exp":      time.Now().Add(time.Hour * 72).Unix(),
+	}
+	tokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token, err := tokenObj.SignedString(jwtKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar token"})
 		return
@@ -84,9 +93,10 @@ func Login(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":    user.ID,
-			"name":  user.Name,
-			"email": user.Email,
+			"id":       user.ID,
+			"name":     user.Name,
+			"email":    user.Email,
+			"is_admin": user.IsAdmin,
 		},
 	})
 }
@@ -114,9 +124,10 @@ func GetMe(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":    user.ID,
-		"name":  user.Name,
-		"email": user.Email,
+		"id":       user.ID,
+		"name":     user.Name,
+		"email":    user.Email,
+		"is_admin": user.IsAdmin,
 	})
 }
 
