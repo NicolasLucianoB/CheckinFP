@@ -215,20 +215,16 @@ func GenerateQRCode(c *gin.Context) {
 	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, host)
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
-	os.MkdirAll("qrcodes", os.ModePerm)
-	filename := "qrcodes/daily_checkin.png"
-
-	err := qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
+	// Gerar o QR code em memória
+	png, err := qrcode.Encode(scanURL, qrcode.Medium, 256)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to generate QR Code"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "QR Code generated",
-		"file":    filename,
-		"url":     scanURL,
-	})
+	// Definir headers e retornar a imagem PNG
+	c.Header("Content-Type", "image/png")
+	c.Writer.Write(png)
 }
 
 func CheckIn(c *gin.Context, db *gorm.DB) {
