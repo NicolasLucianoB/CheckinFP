@@ -240,21 +240,21 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 	claims := token.Claims.(jwt.MapClaims)
 	userID := uint(claims["user_id"].(float64))
 
-	var volunteer models.Volunteer
-	if err := db.First(&volunteer, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Voluntário não encontrado"})
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
 		return
 	}
 
-	checkin := models.VolunteerCheckin{VolunteerID: volunteer.ID}
+	checkin := models.VolunteerCheckin{VolunteerID: user.ID}
 	if err := db.Create(&checkin).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar o check-in"})
 		return
 	}
 
-	log.Printf("Check-in realizado com sucesso: %s", volunteer.Name)
+	log.Printf("Check-in realizado com sucesso: %s", user.Name)
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("✅ Check-in realizado com sucesso! A paz, %s!", volunteer.Name),
+		"message": fmt.Sprintf("✅ Check-in realizado com sucesso! A paz, %s!", user.Name),
 	})
 }
 
