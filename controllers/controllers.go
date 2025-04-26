@@ -20,11 +20,9 @@ import (
 var jwtKey = []byte("sua_chave_secreta")
 
 func GenerateToken(userID uint) (string, error) {
-	// This function signature will need user.IsAdmin to add the claim, but for now, keep as is.
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(time.Hour * 72).Unix(),
-		// "is_admin" will be added in Login below instead.
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtKey)
@@ -95,6 +93,7 @@ func Login(c *gin.Context, db *gorm.DB) {
 		"user": gin.H{
 			"id":       user.ID,
 			"name":     user.Name,
+			"role":     user.Role,
 			"email":    user.Email,
 			"is_admin": user.IsAdmin,
 		},
@@ -126,6 +125,7 @@ func GetMe(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":       user.ID,
 		"name":     user.Name,
+		"role":     user.Role,
 		"email":    user.Email,
 		"is_admin": user.IsAdmin,
 	})
