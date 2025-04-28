@@ -12,17 +12,17 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	r.POST("/signup", func(c *gin.Context) { controllers.SignUp(c, db) })
 	r.POST("/login", func(c *gin.Context) { controllers.Login(c, db) })
 
-	r.GET("/generate/qr", controllers.GenerateQRCode) // Public route for QR code generation
+	// r.GET("/generate/qr", controllers.GenerateQRCode) // Public route for QR code generation
 
 	// Protected Routes
 	auth := r.Group("/")
 	auth.Use(middlewares.AuthMiddleware())
 
 	// QR Code
-	// auth.GET("/generate/qr", controllers.GenerateQRCode)
+	auth.GET("/generate/qr", controllers.GenerateQRCode)
 
 	// Authenticated User Info
-	// auth.GET("/me", func(c *gin.Context) { controllers.GetMe(c, db) })
+	auth.GET("/me", func(c *gin.Context) { controllers.GetMe(c, db) })
 
 	// Check-in
 	auth.POST("/checkin", func(c *gin.Context) { controllers.CheckIn(c, db) })
