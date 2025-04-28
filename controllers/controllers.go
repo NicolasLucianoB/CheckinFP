@@ -132,27 +132,25 @@ func GetMe(c *gin.Context, db *gorm.DB) {
 }
 
 func CreateVolunteer(c *gin.Context, db *gorm.DB) {
-	var volunteer models.Volunteer
-	if err := c.ShouldBindJSON(&volunteer); err != nil {
+	var user models.User
+	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Dados inválidos"})
 		return
 	}
-
-	if err := db.Create(&volunteer).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Não foi possível cadastrar o voluntário"})
+	if err := db.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Não foi possível cadastrar o usuário"})
 		return
 	}
-
-	c.JSON(http.StatusCreated, volunteer)
+	c.JSON(http.StatusCreated, user)
 }
 
 func ListVolunteers(c *gin.Context, db *gorm.DB) {
-	var volunteers []models.Volunteer
+	var users []models.User
 
 	name := c.Query("name")
 	role := c.Query("role")
 
-	query := db.Model(&models.Volunteer{})
+	query := db.Model(&models.User{})
 
 	if name != "" {
 		query = query.Where("name LIKE ?", "%"+name+"%")
@@ -162,25 +160,25 @@ func ListVolunteers(c *gin.Context, db *gorm.DB) {
 		query = query.Where("role LIKE ?", "%"+role+"%")
 	}
 
-	if err := query.Find(&volunteers).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar voluntários"})
+	if err := query.Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar usuários"})
 		return
 	}
 
-	c.JSON(http.StatusOK, volunteers)
+	c.JSON(http.StatusOK, users)
 }
 
 func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 
-	var volunteer models.Volunteer
-	if err := db.First(&volunteer, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"message": "Voluntário não encontrado"})
+	var user models.User
+	if err := db.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Usuário não encontrado"})
 		return
 	}
 
 	var checkins []models.VolunteerCheckin
-	if err := db.Where("volunteer_id = ?", volunteer.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+	if err := db.Where("volunteer_id = ?", user.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
 		return
 	}
@@ -204,10 +202,10 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":                  volunteer.ID,
-		"name":                volunteer.Name,
-		"role":                volunteer.Role,
-		"created_at":          volunteer.CreatedAt,
+		"id":                  user.ID,
+		"name":                user.Name,
+		"role":                user.Role,
+		"created_at":          user.CreatedAt,
 		"checkins":            checkins,
 		"total_checkins":      len(checkins),
 		"first_checkin":       firstCheckin,
@@ -254,12 +252,6 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
-		return
-	}
-
-	checkin := models.VolunteerCheckin{VolunteerID: user.ID}
-	if err := db.Create(&checkin).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar o check-in"})
 		return
 	}
 
@@ -315,14 +307,14 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	claims := token.Claims.(jwt.MapClaims)
 	userID := uint(claims["user_id"].(float64))
 
-	var volunteer models.Volunteer
-	if err := db.First(&volunteer, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"message": "Voluntário não encontrado"})
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Usuário não encontrado"})
 		return
 	}
 
 	var checkins []models.VolunteerCheckin
-	if err := db.Where("volunteer_id = ?", volunteer.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+	if err := db.Where("volunteer_id = ?", user.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
 		return
 	}
@@ -353,9 +345,9 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 
 	var ranking []RankingEntry
 	if err := db.Table("volunteer_checkins").
-		Select("volunteers.id, volunteers.name, COUNT(volunteer_checkins.id) as total_checkins").
-		Joins("JOIN volunteers ON volunteers.id = volunteer_checkins.volunteer_id").
-		Group("volunteers.id, volunteers.name").
+		Select("users.id, users.name, COUNT(volunteer_checkins.id) as total_checkins").
+		Joins("JOIN users ON users.id = volunteer_checkins.volunteer_id").
+		Group("users.id, users.name").
 		Order("total_checkins DESC").
 		Scan(&ranking).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar ranking"})
@@ -364,17 +356,17 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 
 	var rankingPosition int
 	for i, entry := range ranking {
-		if entry.ID == volunteer.ID {
+		if entry.ID == user.ID {
 			rankingPosition = i + 1
 			break
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":                  volunteer.ID,
-		"name":                volunteer.Name,
-		"role":                volunteer.Role,
-		"created_at":          volunteer.CreatedAt,
+		"id":                  user.ID,
+		"name":                user.Name,
+		"role":                user.Role,
+		"created_at":          user.CreatedAt,
 		"total_checkins":      len(checkins),
 		"checkins_this_month": checkinsThisMonth,
 		"first_checkin":       firstCheckin,

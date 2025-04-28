@@ -76,6 +76,6 @@ func initDB() *gorm.DB {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}
 
-	db.AutoMigrate(&models.User{}, &models.Volunteer{}, &models.VolunteerCheckin{})
+	db.AutoMigrate(&models.User{}, &models.VolunteerCheckin{})
 	return db
 }

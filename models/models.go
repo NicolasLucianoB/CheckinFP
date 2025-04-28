@@ -22,16 +22,9 @@ type User struct {
 	CreatedAt time.Time
 }
 
-type Volunteer struct {
-	ID        uint   `gorm:"primaryKey"`
-	Name      string `gorm:"not null;unique"`
-	Role      string
-	CreatedAt time.Time
-}
-
 type VolunteerCheckin struct {
 	ID          uint      `gorm:"primaryKey"`
-	VolunteerID uint      `gorm:"not null"`
+	UserID      uint      `gorm:"not null"`
 	CheckinTime time.Time `gorm:"autoCreateTime"`
 }
 
@@ -54,7 +47,7 @@ func InitDB() {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}
 
-	err = database.AutoMigrate(&User{}, &Volunteer{}, &VolunteerCheckin{})
+	err = database.AutoMigrate(&User{}, &VolunteerCheckin{})
 	if err != nil {
 		log.Fatal("Erro ao fazer AutoMigrate:", err)
 	}
