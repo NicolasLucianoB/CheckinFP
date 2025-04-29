@@ -215,13 +215,17 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 }
 
 func GenerateQRCode(c *gin.Context) {
-	scheme := "https"
-	host := os.Getenv("APP_HOST")
-	if os.Getenv("ENV") == "development" {
-		scheme = "http"
-		host = "localhost:8080"
+	appHost := os.Getenv("APP_HOST")
+	if appHost == "" {
+		appHost = "localhost:8080"
 	}
-	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, host)
+
+	scheme := "https"
+	if strings.HasPrefix(appHost, "localhost") || strings.HasPrefix(appHost, "127.0.0.1") {
+		scheme = "http"
+	}
+
+	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, appHost)
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
 	// Gerar o QR code em memória
