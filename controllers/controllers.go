@@ -17,7 +17,9 @@ import (
 	"github.com/nicolaslucianob/checkinfp/models"
 )
 
-var jwtKey = []byte("sua_chave_secreta")
+// jwtKey agora é lida da variável de ambiente JWT_SECRET.
+// Isso permite definir a chave secreta por variável de ambiente, ideal para produção e desenvolvimento.
+var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func GenerateToken(userID uint) (string, error) {
 	claims := jwt.MapClaims{
