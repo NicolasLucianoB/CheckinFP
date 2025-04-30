@@ -69,7 +69,6 @@ var Ctx = context.Background()
 func NewRedisClient() *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_ADDR"),
-		Password: "",
-		DB:       0,
+		Password: os.Getenv("REDIS_PASS"),
 	})
 }
