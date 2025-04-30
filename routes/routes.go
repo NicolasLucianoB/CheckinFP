@@ -20,6 +20,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 
 	// QR Code
 	auth.GET("/generate/qr", controllers.GenerateQRCode)
+	auth.POST("/generate/qr/reset", controllers.RegenerateQRCode)
 
 	// Authenticated User Info
 	auth.GET("/me", func(c *gin.Context) { controllers.GetMe(c, db) })

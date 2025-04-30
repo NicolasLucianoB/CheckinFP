@@ -15,10 +15,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/nicolaslucianob/checkinfp/models"
+	"github.com/nicolaslucianob/checkinfp/utils"
 )
 
-// jwtKey agora é lida da variável de ambiente JWT_SECRET.
-// Isso permite definir a chave secreta por variável de ambiente, ideal para produção e desenvolvimento.
 var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func GenerateToken(userID uint) (string, error) {
@@ -78,7 +77,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "*Senha errada, irmão(ã)"})
 		return
 	}
-	// Gerar token incluindo is_admin no payload
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,
 		"is_admin": user.IsAdmin,
@@ -217,29 +215,72 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 }
 
 func GenerateQRCode(c *gin.Context) {
-	appHost := os.Getenv("APP_HOST")
-	if appHost == "" {
-		appHost = "localhost:8080"
-	}
+	client := utils.NewRedisClient()
+	defer client.Close()
 
-	scheme := "https"
-	if strings.HasPrefix(appHost, "localhost") || strings.HasPrefix(appHost, "127.0.0.1") {
-		scheme = "http"
-	}
+	key := fmt.Sprintf("checkinfp:qr_code_url:%s", time.Now().Format("2006-01-02"))
+	cachedURL, err := client.Get(utils.Ctx, key).Result()
 
-	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, appHost)
-	log.Printf("QR Code gerado com URL: %s", scanURL)
-
-	// Gerar o QR code em memória
-	png, err := qrcode.Encode(scanURL, qrcode.Medium, 256)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to generate QR Code"})
+	if err == nil {
+		ttl, _ := client.TTL(utils.Ctx, key).Result()
+		c.JSON(http.StatusOK, gin.H{"url": cachedURL, "expires_in": ttl.Seconds()})
 		return
 	}
 
-	// Definir headers e retornar a imagem PNG
-	c.Header("Content-Type", "image/png")
-	c.Writer.Write(png)
+	scheme := "https"
+	host := os.Getenv("APP_HOST")
+	if os.Getenv("ENV") == "development" {
+		scheme = "http"
+		host = "localhost:8080"
+	}
+
+	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, host)
+	log.Printf("QR Code gerado com URL: %s", scanURL)
+
+	filename := fmt.Sprintf("qr-%d.png", time.Now().Unix())
+	err = qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar QR Code"})
+		return
+	}
+	defer os.Remove(filename)
+
+	file, err := os.Open(filename)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao abrir QR Code"})
+		return
+	}
+	defer file.Close()
+
+	url, err := utils.UploadToCloudinary(filename, strings.TrimSuffix(filename, ".png"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao enviar QR Code para o Cloudinary"})
+		return
+	}
+
+	// Hoje armazena no Redis por 5 horas
+	err = client.Set(utils.Ctx, key, url, 5*time.Hour).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar no cache"})
+		return
+	}
+
+	ttl, _ := client.TTL(utils.Ctx, key).Result()
+	c.JSON(http.StatusOK, gin.H{"url": url, "expires_in": ttl.Seconds()})
+}
+
+func RegenerateQRCode(c *gin.Context) {
+	client := utils.NewRedisClient()
+	defer client.Close()
+
+	key := fmt.Sprintf("checkinfp:qr_code_url:%s", time.Now().Format("2006-01-02"))
+	err := client.Del(utils.Ctx, key).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao deletar QR Code do cache"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "QR Code resetado com sucesso"})
 }
 
 func CheckIn(c *gin.Context, db *gorm.DB) {
