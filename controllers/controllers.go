@@ -100,20 +100,12 @@ func Login(c *gin.Context, db *gorm.DB) {
 }
 
 func GetMe(c *gin.Context, db *gorm.DB) {
-	authHeader := c.GetHeader("Authorization")
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-
-	if err != nil || !token.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
 		return
 	}
-
-	claims := token.Claims.(jwt.MapClaims)
-	userID := uint(claims["user_id"].(float64))
+	userID := userIDVal.(uint)
 
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {
@@ -283,17 +275,12 @@ func RegenerateQRCode(c *gin.Context) {
 }
 
 func CheckIn(c *gin.Context, db *gorm.DB) {
-	authHeader := c.GetHeader("Authorization")
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil || !token.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
 		return
 	}
-	claims := token.Claims.(jwt.MapClaims)
-	userID := uint(claims["user_id"].(float64))
+	userID := userIDVal.(uint)
 
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {
@@ -341,17 +328,12 @@ func CheckinRanking(c *gin.Context, db *gorm.DB) {
 }
 
 func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
-	authHeader := c.GetHeader("Authorization")
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil || !token.Valid {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
 		return
 	}
-	claims := token.Claims.(jwt.MapClaims)
-	userID := uint(claims["user_id"].(float64))
+	userID := userIDVal.(uint)
 
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {

@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte("sua_chave_secreta")
+var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -24,11 +25,17 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			return jwtKey, nil
 		})
 
-		if err != nil || !token.Valid {
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			userID := uint(claims["user_id"].(float64))
+			isAdmin := claims["is_admin"].(bool)
+
+			c.Set("user_id", userID)
+			c.Set("is_admin", isAdmin)
+		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
 			c.Abort()
 			return
