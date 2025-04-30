@@ -10,12 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/nicolaslucianob/checkinfp/models"
+	"github.com/nicolaslucianob/checkinfp/utils"
 	"github.com/skip2/go-qrcode"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-
-	"github.com/nicolaslucianob/checkinfp/models"
-	"github.com/nicolaslucianob/checkinfp/utils"
 )
 
 var jwtKey = []byte(os.Getenv("JWT_SECRET"))
