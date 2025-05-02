@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -56,11 +57,16 @@ func UploadToCloudinary(filePath string, filename string) (string, error) {
 	uploadParams := uploader.UploadParams{
 		PublicID: filename,
 	}
+
+	log.Println("Tentando enviar arquivo:", filePath)
+
 	uploadResult, err := cld.Upload.Upload(ctx, filePath, uploadParams)
 	if err != nil {
-		return "", fmt.Errorf("erro ao fazer upload para Cloudinary: %v", err)
+		// return "", fmt.Errorf("erro ao fazer upload para Cloudinary: %v", err)
+		return "", fmt.Errorf("erro no upload para Cloudinary:\nArquivo: %s\nErro: %v", filePath, err)
 	}
 
+	log.Println("Upload concluído. URL:", uploadResult.SecureURL)
 	return uploadResult.SecureURL, nil
 }
 

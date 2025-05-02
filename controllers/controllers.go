@@ -229,7 +229,7 @@ func GenerateQRCode(c *gin.Context) {
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
 	filename := fmt.Sprintf("qr-%d.png", time.Now().Unix())
-	log.Println("111111 aqui que é o filename: ", filename)
+	log.Println("Aqui que é o filename: ", filename)
 	err = qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar QR Code"})
