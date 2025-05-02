@@ -235,7 +235,6 @@ func GenerateQRCode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar QR Code"})
 		return
 	}
-	defer os.Remove(filename)
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -249,6 +248,7 @@ func GenerateQRCode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao enviar QR Code para o Cloudinary"})
 		return
 	}
+	os.Remove(filename)
 
 	// Hoje armazena no Redis por 5 horas
 	err = client.Set(utils.Ctx, key, url, 5*time.Hour).Err()
