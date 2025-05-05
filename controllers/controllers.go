@@ -218,18 +218,12 @@ func GenerateQRCode(c *gin.Context) {
 		return
 	}
 
+	host := os.Getenv("FRONT_HOST")
 	scheme := "https"
-	host := os.Getenv("APP_HOST")
-	if os.Getenv("ENV") == "development" {
-		scheme = "http"
-		host = "localhost:8080"
-	}
-
 	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, host)
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
 	filename := fmt.Sprintf("qr-%d.png", time.Now().Unix())
-	log.Println("Aqui que é o filename: ", filename)
 	err = qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar QR Code"})
@@ -250,7 +244,6 @@ func GenerateQRCode(c *gin.Context) {
 	}
 	os.Remove(filename)
 
-	// Hoje armazena no Redis por 5 horas
 	err = client.Set(utils.Ctx, key, url, 5*time.Hour).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar no cache"})
