@@ -250,8 +250,10 @@ func GenerateQRCode(c *gin.Context) {
 		return
 	}
 
-	ttl, _ := client.TTL(utils.Ctx, key).Result()
-	c.JSON(http.StatusOK, gin.H{"url": url, "expires_in": ttl.Seconds()})
+	c.JSON(http.StatusOK, gin.H{
+		"url":        url,
+		"expires_in": (5 * time.Hour).Seconds(),
+	})
 }
 
 func RegenerateQRCode(c *gin.Context) {
