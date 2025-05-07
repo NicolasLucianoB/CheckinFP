@@ -8,6 +8,9 @@ import (
 	"os"
 	"time"
 
+	"crypto/rand"
+	"encoding/hex"
+
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/golang-jwt/jwt/v5"
@@ -81,4 +84,13 @@ func NewRedisClient() *redis.Client {
 			MinVersion: tls.VersionTLS12,
 		},
 	})
+}
+
+func GenerateRandomToken() string {
+	bytes := make([]byte, 16) // 128 bits
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(bytes)
 }

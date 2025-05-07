@@ -209,21 +209,24 @@ func GenerateQRCode(c *gin.Context) {
 	client := utils.NewRedisClient()
 	defer client.Close()
 
-	key := fmt.Sprintf("checkinfp:qr_code_url:%s", time.Now().Format("2006-01-02"))
-	cachedURL, err := client.Get(utils.Ctx, key).Result()
-
-	if err == nil {
-		ttl, _ := client.TTL(utils.Ctx, key).Result()
-		c.JSON(http.StatusOK, gin.H{"url": cachedURL, "expires_in": ttl.Seconds()})
+	// 1. Gera um token UUID único.
+	// Se quiser, pode usar uuid.New().String() diretamente.
+	token := utils.GenerateRandomToken()
+	// 2. Salva o token no Redis com expiração de 5 horas.
+	redisTokenKey := fmt.Sprintf("checkinfp:token:%s", token)
+	err := client.Set(utils.Ctx, redisTokenKey, "valid", 5*time.Hour).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar token no cache"})
 		return
 	}
 
+	// 3. Gera um QR Code contendo a URL com o token como query string.
 	host := os.Getenv("FRONT_HOST")
 	scheme := "https"
-	scanURL := fmt.Sprintf("%s://%s/checkin", scheme, host)
+	scanURL := fmt.Sprintf("%s://%s/checkin?token=%s", scheme, host, token)
 	log.Printf("QR Code gerado com URL: %s", scanURL)
 
-	filename := fmt.Sprintf("qr-%d.png", time.Now().Unix())
+	filename := fmt.Sprintf("qr-%s.png", token)
 	err = qrcode.WriteFile(scanURL, qrcode.Medium, 256, filename)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar QR Code"})
@@ -244,14 +247,10 @@ func GenerateQRCode(c *gin.Context) {
 	}
 	os.Remove(filename)
 
-	err = client.Set(utils.Ctx, key, url, 5*time.Hour).Err()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar no cache"})
-		return
-	}
-
+	// Retorna a URL do QR code e o token
 	c.JSON(http.StatusOK, gin.H{
 		"url":        url,
+		"token":      token,
 		"expires_in": (5 * time.Hour).Seconds(),
 	})
 }
@@ -271,6 +270,24 @@ func RegenerateQRCode(c *gin.Context) {
 }
 
 func CheckIn(c *gin.Context, db *gorm.DB) {
+	// 1. Valida o token do QR Code
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token ausente na requisição"})
+		return
+	}
+
+	client := utils.NewRedisClient()
+	defer client.Close()
+
+	redisKey := fmt.Sprintf("checkinfp:token:%s", token)
+	val, err := client.Get(utils.Ctx, redisKey).Result()
+	if err != nil || val != "valid" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "QR Code inválido ou expirado"})
+		return
+	}
+
+	// 2. Valida o usuário
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
