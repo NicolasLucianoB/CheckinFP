@@ -303,7 +303,7 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 
 	log.Printf("Check-in realizado com sucesso: %s", user.Name)
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("✅ Check-in realizado com sucesso! A paz, %s!", user.Name),
+		"message": fmt.Sprintln("✅ Check-in realizado com sucesso\nHora de servir com alegria!"),
 	})
 }
 
