@@ -1,83 +1,101 @@
 # CheckinFP Backend - API for Volunteer Check-in
 
-**CheckinFP Backend** is a RESTful API built with **Go** using the **Gin Gonic** framework. It is responsible for generating unique QR codes, registering volunteer check-ins, and managing the data related to volunteer attendance.
+**CheckinFP Backend** is a RESTful API built with **Go** using the **Gin Gonic** framework. It is responsible for generating a single QR code per service, validating volunteer check-ins, and managing attendance data.
 
 ## 🚀 Features
 
-✅ User authentication with JWT tokens.  
-✅ Generate unique QR codes for each volunteer.  
-✅ Register check-ins when a volunteer scans their QR code.  
-✅ Store data like name and check-in time in the database.  
-✅ Easily extensible for future improvements, such as Power BI integration for reports.
+✅ User authentication with JWT tokens  
+✅ Generate a unique QR code per day (manual trigger by admin)  
+✅ Store the QR code in Cloudinary and cache its URL in Redis  
+✅ Register check-ins via secure QR scan flow  
+✅ Store data like user, timestamp and role in PostgreSQL  
+✅ Admin and volunteer roles for customized access  
+✅ Extensible architecture for Power BI dashboards
 
 ## 🛠 Technologies Used
 
-- **Go** (Gin Gonic framework for the API)
-- **SQLite** (local database for storing data)
-- **JWT** (JSON Web Tokens for secure authentication)
-- **Gin Middleware** (for authentication and logging)
-- **QR Code Generator** (`github.com/skip2/go-qrcode`)
+- **Go** (Gin Gonic framework)
+- **PostgreSQL** (database)
+- **JWT** (for secure authentication)
+- **Redis** (for QR code caching)
+- **Cloudinary** (for QR code image storage)
+- **Gin Middleware** (for logging and authentication)
+- **go-qrcode** (QR Code generation)
 
 ## 📦 How to Run the Project Locally
 
-Follow these steps to get the backend up and running locally:
-
 ### 1. Clone the Repository
 
-```sh
-git clone https://github.com/your-username/CheckinFP.git
-cd CheckinFP/checkin-backend
+```bash
+git clone https://github.com/NicolasLucianoB/CheckinFP.git
+cd CheckinFP
 ```
 
 ### 2. Install Dependencies
 
-Make sure you have Go installed and set up:
+Make sure Go is installed:
 
-```sh
+```bash
 go mod tidy
 ```
 
-### 3. Run the Server
+### 3. Configure `.env` File
 
-Start the Go server with:
+Create a `.env` file at the root with your local or cloud credentials. Example:
 
-```sh
+```env
+DB_DRIVER=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=your_user
+DB_PASS=your_pass
+DB_NAME=your_db_name
+
+APP_HOST=localhost
+
+REDIS_ADDR=localhost:6379
+REDIS_PASS=your_redis_pass
+
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+JWT_SECRET=your_jwt_secret
+```
+
+### 4. Run the Server
+
+```bash
 go run main.go
 ```
 
 The server will be running at `http://localhost:8080`.
 
-### 4. API Endpoints
+### 5. API Endpoints
 
-- **POST /login**: Logs a user in and returns a JWT token.
-- **GET /generate/{volunteer_name}**: Generates a QR code for the specified volunteer.
-- **GET /checkin/{volunteer_name}**: Registers the volunteer's check-in when the QR code is scanned.
-- **GET /me**: Validates the current user's JWT token and returns user information.
-
-### 5. Testing Locally
-
-1. Generate a QR code for a volunteer:
-   ```sh
-   http://localhost:8080/generate/VolunteerName
-   ```
-2. Register a check-in by visiting:
-   ```sh
-   http://localhost:8080/checkin/VolunteerName
-   ```
+- **POST /signup** – Register a new user
+- **POST /login** – Login and receive JWT
+- **GET /generate/qr** – Admin-only: generate a new QR Code
+- **POST /generate/qr/reset** – Admin-only: delete today's cached QR Code
+- **POST /checkin** – Make check-in using scanned token
+- **GET /checkins** – List all check-ins
+- **GET /ranking** – Show ranking based on attendance
+- **GET /me** – Authenticated user info
 
 ## 🛠 Planned Improvements
 
-- 📌 Switch from SQLite to MySQL for better scalability.
-- 📌 Implement better user input validation.
-- 📌 Build a dashboard with data analytics and visualizations (Power BI).
-- 📌 Add error handling and more detailed logging.
+- 🔧 Dashboard integration using Power BI or similar
+- 🔐 Better token/session handling for QR validation
+- 📊 Expand analytics endpoints
+- ⚙️ Add logs and observability
 
-## 🌐 Deploy
+## 🌐 Deployment
 
-To deploy this backend application, you can use cloud platforms such as **Heroku**, **AWS**, or **DigitalOcean**.
+- Backend hosted on [Render](https://render.com)
+- Frontend hosted on [Vercel](https://vercel.com)
+- cache hosted on [Upstash](https://upstash.com)
+
 
 ---
 
-📌 **Project Status**: *Under development 🚧*
-
-💡 **Contributions are welcome!**
+📌 **Project Status**: *MVP functional and under active improvement 🚧*
