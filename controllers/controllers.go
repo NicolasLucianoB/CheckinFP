@@ -296,8 +296,12 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 	}
 
 	checkKey := fmt.Sprintf("checkinfp:checkin:%d:%s", userID, token)
-	existsCheckin, err := client.Get(utils.Ctx, checkKey).Result()
-	if err == nil && existsCheckin == "done" {
+	success, err := client.SetNX(utils.Ctx, checkKey, "done", 3*time.Hour).Result()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao acessar o cache"})
+		return
+	}
+	if !success {
 		c.JSON(http.StatusConflict, gin.H{
 			"message": "Você já fez o check-in para este culto! 🙌🏽",
 		})
@@ -309,15 +313,14 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 		CheckinTime: time.Now(),
 	}
 	if err := db.Create(&checkin).Error; err != nil {
+		_ = client.Del(utils.Ctx, checkKey).Err()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar check-in"})
 		return
 	}
 
-	_ = client.Set(utils.Ctx, checkKey, "done", 3*time.Hour).Err()
-
 	log.Printf("Check-in realizado com sucesso: %s", user.Name)
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintln("✅ Check-in realizado com sucesso\nHora de servir com alegria!"),
+		"message": "✅ Check-in realizado com sucesso\nHora de servir com alegria!",
 	})
 }
 
