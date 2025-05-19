@@ -209,18 +209,15 @@ func GenerateQRCode(c *gin.Context) {
 	client := utils.NewRedisClient()
 	defer client.Close()
 
-	// 1. Gera um token UUID único.
-	// Se quiser, pode usar uuid.New().String() diretamente.
 	token := utils.GenerateRandomToken()
-	// 2. Salva o token no Redis com expiração de 5 horas.
+	// Salva o token no Redis com expiração de 3 horas.
 	redisTokenKey := fmt.Sprintf("checkinfp:token:%s", token)
-	err := client.Set(utils.Ctx, redisTokenKey, "valid", 5*time.Hour).Err()
+	err := client.Set(utils.Ctx, redisTokenKey, "valid", 3*time.Hour).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar token no cache"})
 		return
 	}
 
-	// 3. Gera um QR Code contendo a URL com o token como query string.
 	host := os.Getenv("FRONT_HOST")
 	scheme := "https"
 	scanURL := fmt.Sprintf("%s://%s/checkin?token=%s", scheme, host, token)
@@ -247,11 +244,10 @@ func GenerateQRCode(c *gin.Context) {
 	}
 	os.Remove(filename)
 
-	// Retorna a URL do QR code e o token
 	c.JSON(http.StatusOK, gin.H{
 		"url":        url,
 		"token":      token,
-		"expires_in": (5 * time.Hour).Seconds(),
+		"expires_in": (3 * time.Hour).Seconds(),
 	})
 }
 
@@ -270,7 +266,6 @@ func RegenerateQRCode(c *gin.Context) {
 }
 
 func CheckIn(c *gin.Context, db *gorm.DB) {
-	// 1. Valida o token do QR Code
 	token := c.Query("token")
 	if token == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Token ausente na requisição"})
@@ -287,7 +282,6 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 2. Valida o usuário
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
@@ -300,6 +294,26 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
 		return
 	}
+
+	checkKey := fmt.Sprintf("checkinfp:checkin:%d:%s", userID, token)
+	existsCheckin, err := client.Get(utils.Ctx, checkKey).Result()
+	if err == nil && existsCheckin == "done" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "✅ Check-in já foi registrado anteriormente.",
+		})
+		return
+	}
+
+	checkin := models.VolunteerCheckin{
+		UserID:      user.ID,
+		CheckinTime: time.Now(),
+	}
+	if err := db.Create(&checkin).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar check-in"})
+		return
+	}
+
+	_ = client.Set(utils.Ctx, checkKey, "done", 3*time.Hour).Err()
 
 	log.Printf("Check-in realizado com sucesso: %s", user.Name)
 	c.JSON(http.StatusOK, gin.H{
