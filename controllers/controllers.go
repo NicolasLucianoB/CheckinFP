@@ -298,8 +298,8 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 	checkKey := fmt.Sprintf("checkinfp:checkin:%d:%s", userID, token)
 	existsCheckin, err := client.Get(utils.Ctx, checkKey).Result()
 	if err == nil && existsCheckin == "done" {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "✅ Check-in já foi registrado anteriormente.",
+		c.JSON(http.StatusConflict, gin.H{
+			"message": "Você já fez o check-in para este culto! 🙌🏽",
 		})
 		return
 	}
