@@ -24,6 +24,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 
 	// Authenticated User Info
 	auth.GET("/me", func(c *gin.Context) { controllers.GetMe(c, db) })
+	auth.PUT("/me", func(c *gin.Context) { controllers.UpdateProfile(c, db) })
 
 	// Check-in
 	auth.POST("/checkin", func(c *gin.Context) { controllers.CheckIn(c, db) })

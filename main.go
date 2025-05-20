@@ -27,17 +27,21 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		// AllowOrigins:     []string{"http://localhost:3000", "https://" + os.Getenv("APP_HOST")},
+		AllowOriginFunc: func(origin string) bool {
+			frontLocal := "http://localhost:3000"
+			frontRede := "http://" + os.Getenv("APP_HOST") + ":3000"
+			frontProd := "https://" + os.Getenv("FRONT_HOST")
+
+			fmt.Println("Origin recebida:", origin)
+
+			return origin == frontLocal || origin == frontRede || origin == frontProd
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
-		AllowOriginFunc: func(origin string) bool {
-			return true // Permitir todas as origens no pré-flight (modificável para produção)
-		},
 	}))
 
-	// Chamando a função de registro de rotas
 	routes.RegisterRoutes(r, db)
 
 	r.Run("0.0.0.0:8080") // rede local

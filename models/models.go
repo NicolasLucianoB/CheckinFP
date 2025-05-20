@@ -19,6 +19,7 @@ type User struct {
 	Role      string `gorm:"not null"`
 	Password  string `gorm:"not null"`
 	IsAdmin   bool   `json:"is_admin" gorm:"default:false"`
+	PhotoURL  string `json:"photo_url"`
 	CreatedAt time.Time
 }
 

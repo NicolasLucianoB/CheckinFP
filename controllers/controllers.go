@@ -114,11 +114,12 @@ func GetMe(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":       user.ID,
-		"name":     user.Name,
-		"role":     user.Role,
-		"email":    user.Email,
-		"is_admin": user.IsAdmin,
+		"id":        user.ID,
+		"name":      user.Name,
+		"role":      user.Role,
+		"email":     user.Email,
+		"is_admin":  user.IsAdmin,
+		"photo_url": user.PhotoURL,
 	})
 }
 
@@ -431,4 +432,64 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 		"last_checkin":        lastCheckin,
 		"ranking_position":    rankingPosition,
 	})
+}
+
+func UpdateProfile(c *gin.Context, db *gorm.DB) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
+		return
+	}
+	userID := userIDVal.(uint)
+
+	var input struct {
+		Name     *string `json:"name"`
+		Email    *string `json:"email"`
+		Password *string `json:"password"`
+		Role     *string `json:"role"`
+		PhotoURL *string `json:"photo_url"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Dados inválidos"})
+		return
+	}
+
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Usuário não encontrado"})
+		return
+	}
+
+	if input.Name != nil {
+		if len(strings.Fields(*input.Name)) < 2 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "*Por favor, informe seu nome completo, varão(oa)"})
+			return
+		}
+		user.Name = *input.Name
+	}
+	if input.Email != nil {
+		user.Email = *input.Email
+	}
+	if input.Role != nil {
+		user.Role = *input.Role
+	}
+	if input.PhotoURL != nil {
+		user.PhotoURL = *input.PhotoURL
+	}
+	if input.Password != nil {
+		hashedPassword, err := HashPassword(*input.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criptografar senha"})
+			return
+		}
+		user.Password = hashedPassword
+	}
+
+	if err := db.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao atualizar perfil"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Perfil atualizado com sucesso"})
 }
