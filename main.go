@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -29,10 +30,8 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			frontLocal := "http://localhost:3000"
-			frontRede := "http://" + os.Getenv("APP_HOST") + ":3000"
+			frontRede := "http://" + strings.TrimSpace(os.Getenv("APP_HOST")) + ":3000"
 			frontProd := "https://" + os.Getenv("FRONT_HOST")
-
-			fmt.Println("Origin recebida:", origin)
 
 			return origin == frontLocal || origin == frontRede || origin == frontProd
 		},

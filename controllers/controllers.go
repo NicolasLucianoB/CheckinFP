@@ -55,7 +55,15 @@ func SignUp(c *gin.Context, db *gorm.DB) {
 	}
 	user := models.User{Name: input.Name, Email: input.Email, Password: hashedPassword, IsAdmin: false}
 	if err := db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criar voluntário"})
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "duplicate key") ||
+			strings.Contains(errMsg, "UNIQUE constraint failed") ||
+			strings.Contains(errMsg, "duplicate entry") ||
+			strings.Contains(errMsg, "Error 1062") {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "*E-mail já cadastrado, irmão(ã)"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criar conta"})
+		}
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Voluntário criado com sucesso"})
@@ -468,7 +476,12 @@ func UpdateProfile(c *gin.Context, db *gorm.DB) {
 		}
 		user.Name = *input.Name
 	}
-	if input.Email != nil {
+	if input.Email != nil && *input.Email != user.Email {
+		var existingUser models.User
+		if err := db.Where("email = ?", *input.Email).First(&existingUser).Error; err == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "*E-mail já cadastrado, irmão(ã)"})
+			return
+		}
 		user.Email = *input.Email
 	}
 	if input.Role != nil {
