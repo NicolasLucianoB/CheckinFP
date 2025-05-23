@@ -98,11 +98,12 @@ func Login(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":       user.ID,
-			"name":     user.Name,
-			"role":     user.Role,
-			"email":    user.Email,
-			"is_admin": user.IsAdmin,
+			"id":        user.ID,
+			"name":      user.Name,
+			"role":      user.Role,
+			"email":     user.Email,
+			"is_admin":  user.IsAdmin,
+			"photo_url": user.PhotoURL,
 		},
 	})
 }
