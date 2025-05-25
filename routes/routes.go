@@ -29,6 +29,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	// Check-in
 	auth.POST("/checkin", func(c *gin.Context) { controllers.CheckIn(c, db) })
 	auth.GET("/checkins", func(c *gin.Context) { controllers.ListCheckins(c, db) })
+	auth.GET("/checkin/last", func(c *gin.Context) { controllers.GetLastCheckin(c, db) })
 	auth.GET("/ranking", func(c *gin.Context) { controllers.CheckinRanking(c, db) })
 
 	// Volunteers

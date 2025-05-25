@@ -217,12 +217,34 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 
 func GenerateQRCode(c *gin.Context) {
 	client := utils.NewRedisClient()
+
+	qrKey := "checkinfp:qr_code_current"
+
+	// 1. Tenta pegar QR Code salvo
+	existing, err := client.HGetAll(utils.Ctx, qrKey).Result()
+	if err == nil && len(existing) > 0 {
+		ttl, _ := client.TTL(utils.Ctx, qrKey).Result()
+		if ttl > 0 && existing["url"] != "" && existing["token"] != "" {
+			hours := int(ttl.Hours())
+			minutes := int(ttl.Minutes()) % 60
+			seconds := int(ttl.Seconds()) % 60
+
+			c.JSON(http.StatusOK, gin.H{
+				"url":        existing["url"],
+				"token":      existing["token"],
+				"expires_in": fmt.Sprintf("%02dh:%02dm:%02ds", hours, minutes, seconds),
+				"expires_at": time.Now().Add(ttl).UnixMilli(),
+			})
+			return
+		}
+	}
+
 	defer client.Close()
 
 	token := utils.GenerateRandomToken()
 	// Salva o token no Redis com expiração de 3 horas.
 	redisTokenKey := fmt.Sprintf("checkinfp:token:%s", token)
-	err := client.Set(utils.Ctx, redisTokenKey, "valid", 3*time.Hour).Err()
+	err = client.Set(utils.Ctx, redisTokenKey, "valid", 3*time.Hour).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar token no cache"})
 		return
@@ -254,10 +276,18 @@ func GenerateQRCode(c *gin.Context) {
 	}
 	os.Remove(filename)
 
+	_ = client.HSet(utils.Ctx, qrKey, map[string]interface{}{
+		"url":   url,
+		"token": token,
+	}).Err()
+	_ = client.Expire(utils.Ctx, qrKey, 3*time.Hour).Err()
+
+	expiry := 3 * time.Hour
 	c.JSON(http.StatusOK, gin.H{
 		"url":        url,
 		"token":      token,
-		"expires_in": (3 * time.Hour).Seconds(),
+		"expires_in": fmt.Sprintf("%02dh:%02dm:%02ds", int(expiry.Hours()), int(expiry.Minutes())%60, int(expiry.Seconds())%60),
+		"expires_at": time.Now().Add(expiry).UnixMilli(),
 	})
 }
 
@@ -265,8 +295,8 @@ func RegenerateQRCode(c *gin.Context) {
 	client := utils.NewRedisClient()
 	defer client.Close()
 
-	key := fmt.Sprintf("checkinfp:qr_code_url:%s", time.Now().Format("2006-01-02"))
-	err := client.Del(utils.Ctx, key).Err()
+	qrKey := "checkinfp:qr_code_current"
+	err := client.Del(utils.Ctx, qrKey).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao deletar QR Code do cache"})
 		return
@@ -299,6 +329,14 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 	}
 	userID := userIDVal.(uint)
 
+	// Impede múltiplos check-ins por usuário no mesmo período
+	checkUserKey := fmt.Sprintf("checkinfp:user_checkin:%d", userID)
+	alreadyChecked, _ := client.Exists(utils.Ctx, checkUserKey).Result()
+	if alreadyChecked > 0 {
+		c.JSON(http.StatusConflict, gin.H{"message": "Você já fez o check-in para este culto! 🙌🏽"})
+		return
+	}
+
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
@@ -327,6 +365,8 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar check-in"})
 		return
 	}
+
+	_ = client.Set(utils.Ctx, checkUserKey, "done", 3*time.Hour).Err()
 
 	log.Printf("Check-in realizado com sucesso: %s", user.Name)
 	c.JSON(http.StatusOK, gin.H{
@@ -506,4 +546,31 @@ func UpdateProfile(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Perfil atualizado com sucesso"})
+}
+
+func GetLastCheckin(c *gin.Context, db *gorm.DB) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
+		return
+	}
+	userID := userIDVal.(uint)
+
+	var lastCheckin models.VolunteerCheckin
+	err := db.Where("volunteer_id = ?", userID).
+		Order("checkin_time DESC").
+		First(&lastCheckin).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, gin.H{"last_checkin": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar último check-in"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"last_checkin": lastCheckin.CheckinTime,
+	})
 }
