@@ -557,7 +557,7 @@ func GetLastCheckin(c *gin.Context, db *gorm.DB) {
 	userID := userIDVal.(uint)
 
 	var lastCheckin models.VolunteerCheckin
-	err := db.Where("volunteer_id = ?", userID).
+	err := db.Where("user_id = ?", userID).
 		Order("checkin_time DESC").
 		First(&lastCheckin).Error
 
