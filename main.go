@@ -11,7 +11,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/nicolaslucianob/checkinfp/models"
 	"github.com/nicolaslucianob/checkinfp/routes"
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -23,8 +22,15 @@ func main() {
 		_ = godotenv.Load()
 	}
 
+	requiredEnv := []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USER"}
+	for _, env := range requiredEnv {
+		if os.Getenv(env) == "" {
+			log.Fatalf("Variável de ambiente %s está faltando ou vazia", env)
+		}
+	}
+
 	db = initDB()
-	log.Println("Banco conectado com sucesso:", db)
+	log.Println("✅ Banco conectado com sucesso!")
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -43,38 +49,20 @@ func main() {
 
 	routes.RegisterRoutes(r, db)
 
-	r.Run("0.0.0.0:8080") // rede local
+	r.Run("0.0.0.0:8080")
 }
 
 func initDB() *gorm.DB {
-	dbDriver := os.Getenv("DB_DRIVER")
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password='%s' dbname=%s port=%s sslmode=disable TimeZone=America/Sao_Paulo",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASS"),
+		os.Getenv("DB_NAME"),
+		os.Getenv("DB_PORT"),
+	)
 
-	var dsn string
-	var dialector gorm.Dialector
-
-	if dbDriver == "postgres" {
-		dsn = fmt.Sprintf(
-			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-			os.Getenv("DB_HOST"),
-			os.Getenv("DB_USER"),
-			os.Getenv("DB_PASS"),
-			os.Getenv("DB_NAME"),
-			os.Getenv("DB_PORT"),
-		)
-		dialector = postgres.Open(dsn)
-	} else {
-		dsn = fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			os.Getenv("DB_USER"),
-			os.Getenv("DB_PASS"),
-			os.Getenv("DB_HOST"),
-			os.Getenv("DB_PORT"),
-			os.Getenv("DB_NAME"),
-		)
-		dialector = mysql.Open(dsn)
-	}
-
-	db, err := gorm.Open(dialector, &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}
