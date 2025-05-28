@@ -6,20 +6,39 @@ import (
 	"os"
 	"time"
 
-	"gorm.io/driver/mysql"
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
 
+// RolesArray é um tipo customizado para armazenar arrays de roles como JSON no banco de dados.
+type RolesArray []string
+
+func (r *RolesArray) Scan(value interface{}) error {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("falha ao converter valor para []byte")
+	}
+	return json.Unmarshal(bytes, r)
+}
+
+func (r RolesArray) Value() (driver.Value, error) {
+	return json.Marshal(r)
+}
+
 type User struct {
-	ID        uint   `gorm:"primaryKey"`
-	Name      string `gorm:"not null"`
-	Email     string `gorm:"not null;unique"`
-	Role      string `gorm:"not null"`
-	Password  string `gorm:"not null"`
-	IsAdmin   bool   `json:"is_admin" gorm:"default:false"`
-	PhotoURL  string `json:"photo_url"`
+	ID        uint       `gorm:"primaryKey"`
+	Name      string     `gorm:"not null"`
+	Email     string     `gorm:"not null;unique"`
+	Roles     RolesArray `gorm:"type:json"`
+	Password  string     `gorm:"not null"`
+	IsAdmin   bool       `json:"is_admin" gorm:"default:false"`
+	PhotoURL  string     `json:"photo_url"`
 	CreatedAt time.Time
 }
 
@@ -35,15 +54,16 @@ type LoginInput struct {
 }
 
 func InitDB() {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=America/Sao_Paulo",
+		os.Getenv("DB_HOST"),
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASS"),
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
 		os.Getenv("DB_NAME"),
+		os.Getenv("DB_PORT"),
 	)
 
-	database, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}

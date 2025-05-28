@@ -53,7 +53,13 @@ func SignUp(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criptografar senha"})
 		return
 	}
-	user := models.User{Name: input.Name, Email: input.Email, Password: hashedPassword, IsAdmin: false}
+	user := models.User{
+		Name:     input.Name,
+		Email:    input.Email,
+		Password: hashedPassword,
+		Roles:    input.Roles,
+		IsAdmin:  false,
+	}
 	if err := db.Create(&user).Error; err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "duplicate key") ||
@@ -100,7 +106,7 @@ func Login(c *gin.Context, db *gorm.DB) {
 		"user": gin.H{
 			"id":        user.ID,
 			"name":      user.Name,
-			"role":      user.Role,
+			"roles":     user.Roles,
 			"email":     user.Email,
 			"is_admin":  user.IsAdmin,
 			"photo_url": user.PhotoURL,
@@ -125,7 +131,7 @@ func GetMe(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":        user.ID,
 		"name":      user.Name,
-		"role":      user.Role,
+		"roles":     user.Roles,
 		"email":     user.Email,
 		"is_admin":  user.IsAdmin,
 		"photo_url": user.PhotoURL,
@@ -149,7 +155,7 @@ func ListVolunteers(c *gin.Context, db *gorm.DB) {
 	var users []models.User
 
 	name := c.Query("name")
-	role := c.Query("role")
+	roles := c.Query("roles")
 
 	query := db.Model(&models.User{})
 
@@ -157,8 +163,8 @@ func ListVolunteers(c *gin.Context, db *gorm.DB) {
 		query = query.Where("name LIKE ?", "%"+name+"%")
 	}
 
-	if role != "" {
-		query = query.Where("role LIKE ?", "%"+role+"%")
+	if roles != "" {
+		query = query.Where("roles @> ?", fmt.Sprintf(`["%s"]`, roles))
 	}
 
 	if err := query.Find(&users).Error; err != nil {
@@ -205,7 +211,7 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":                  user.ID,
 		"name":                user.Name,
-		"role":                user.Role,
+		"roles":               user.Roles,
 		"created_at":          user.CreatedAt,
 		"checkins":            checkins,
 		"total_checkins":      len(checkins),
@@ -473,7 +479,7 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":                  user.ID,
 		"name":                user.Name,
-		"role":                user.Role,
+		"roles":               user.Roles,
 		"created_at":          user.CreatedAt,
 		"total_checkins":      len(checkins),
 		"checkins_this_month": checkinsThisMonth,
@@ -492,11 +498,11 @@ func UpdateProfile(c *gin.Context, db *gorm.DB) {
 	userID := userIDVal.(uint)
 
 	var input struct {
-		Name     *string `json:"name"`
-		Email    *string `json:"email"`
-		Password *string `json:"password"`
-		Role     *string `json:"role"`
-		PhotoURL *string `json:"photo_url"`
+		Name     *string   `json:"name"`
+		Email    *string   `json:"email"`
+		Password *string   `json:"password"`
+		Roles    *[]string `json:"roles"`
+		PhotoURL *string   `json:"photo_url"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -525,8 +531,8 @@ func UpdateProfile(c *gin.Context, db *gorm.DB) {
 		}
 		user.Email = *input.Email
 	}
-	if input.Role != nil {
-		user.Role = *input.Role
+	if input.Roles != nil {
+		user.Roles = *input.Roles
 	}
 	if input.PhotoURL != nil {
 		user.PhotoURL = *input.PhotoURL

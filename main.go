@@ -49,7 +49,9 @@ func main() {
 
 	routes.RegisterRoutes(r, db)
 
-	r.Run("0.0.0.0:8080")
+	if err := r.Run("0.0.0.0:8080"); err != nil {
+		log.Fatalf("Failed to run server: %v", err)
+	}
 }
 
 func initDB() *gorm.DB {
@@ -67,6 +69,8 @@ func initDB() *gorm.DB {
 		log.Fatal("Erro ao conectar com o banco de dados:", err)
 	}
 
-	db.AutoMigrate(&models.User{}, &models.VolunteerCheckin{})
+	if err := db.AutoMigrate(&models.User{}, &models.VolunteerCheckin{}); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
 	return db
 }

@@ -8,7 +8,7 @@
 ✅ Generate a unique QR code per day (manual trigger by admin)  
 ✅ Store the QR code in Cloudinary and cache its URL in Redis  
 ✅ Register check-ins via secure QR scan flow  
-✅ Store data like user, timestamp and role in PostgreSQL  
+✅ Store data like user, timestamp and roles in PostgreSQL  
 ✅ Admin and volunteer roles for customized access  
 ✅ Extensible architecture for Power BI dashboards
 
