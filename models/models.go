@@ -46,6 +46,7 @@ type User struct {
 type VolunteerCheckin struct {
 	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
 	UserID      uuid.UUID `gorm:"not null"`
+	User        User      `gorm:"foreignKey:UserID;references:ID"`
 	CheckinTime time.Time `gorm:"autoCreateTime"`
 }
 

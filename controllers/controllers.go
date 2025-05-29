@@ -186,7 +186,7 @@ func GetVolunteerByID(c *gin.Context, db *gorm.DB) {
 	}
 
 	var checkins []models.VolunteerCheckin
-	if err := db.Where("volunteer_id = ?", user.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+	if err := db.Where("user_id = ?", user.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
 		return
 	}
@@ -400,9 +400,9 @@ func CheckinRanking(c *gin.Context, db *gorm.DB) {
 	var results []Result
 
 	err := db.Table("volunteer_checkins").
-		Select("volunteers.id, volunteers.name, COUNT(volunteer_checkins.id) as total_checkins").
-		Joins("JOIN volunteers ON volunteers.id = volunteer_checkins.volunteer_id").
-		Group("volunteers.id, volunteers.name").
+		Select("users.id, users.name, COUNT(volunteer_checkins.id) as total_checkins").
+		Joins("JOIN users ON users.id = volunteer_checkins.user_id").
+		Group("users.id, users.name").
 		Order("total_checkins DESC").
 		Scan(&results).Error
 
@@ -429,7 +429,7 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	}
 
 	var checkins []models.VolunteerCheckin
-	if err := db.Where("volunteer_id = ?", user.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+	if err := db.Where("user_id = ?", user.ID).Order("checkin_time DESC").Find(&checkins).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
 		return
 	}
@@ -461,7 +461,7 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	var ranking []RankingEntry
 	if err := db.Table("volunteer_checkins").
 		Select("users.id, users.name, COUNT(volunteer_checkins.id) as total_checkins").
-		Joins("JOIN users ON users.id = volunteer_checkins.volunteer_id").
+		Joins("JOIN users ON users.id = volunteer_checkins.user_id").
 		Group("users.id, users.name").
 		Order("total_checkins DESC").
 		Scan(&ranking).Error; err != nil {
