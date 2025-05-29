@@ -9,6 +9,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var jwtKey = []byte(os.Getenv("JWT_SECRET"))
@@ -30,7 +31,14 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			userID := uint(claims["user_id"].(float64))
+			userIDStr := claims["user_id"].(string)
+			userID, err := uuid.Parse(userIDStr)
+			if err != nil {
+				c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido: user_id inválido"})
+				c.Abort()
+				return
+			}
+
 			isAdmin := claims["is_admin"].(bool)
 
 			c.Set("user_id", userID)

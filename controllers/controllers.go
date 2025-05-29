@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/nicolaslucianob/checkinfp/models"
 	"github.com/nicolaslucianob/checkinfp/utils"
 	"github.com/skip2/go-qrcode"
@@ -120,7 +121,7 @@ func GetMe(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
 		return
 	}
-	userID := userIDVal.(uint)
+	userID := userIDVal.(uuid.UUID)
 
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {
@@ -333,7 +334,7 @@ func CheckIn(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
 		return
 	}
-	userID := userIDVal.(uint)
+	userID := userIDVal.(uuid.UUID)
 
 	// Impede múltiplos check-ins por usuário no mesmo período
 	checkUserKey := fmt.Sprintf("checkinfp:user_checkin:%d", userID)
@@ -391,7 +392,7 @@ func ListCheckins(c *gin.Context, db *gorm.DB) {
 
 func CheckinRanking(c *gin.Context, db *gorm.DB) {
 	type Result struct {
-		ID            uint
+		ID            uuid.UUID
 		Name          string
 		TotalCheckins int
 	}
@@ -419,7 +420,7 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
 		return
 	}
-	userID := userIDVal.(uint)
+	userID := userIDVal.(uuid.UUID)
 
 	var user models.User
 	if err := db.First(&user, userID).Error; err != nil {
@@ -452,7 +453,7 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	}
 
 	type RankingEntry struct {
-		ID            uint
+		ID            uuid.UUID
 		Name          string
 		TotalCheckins int
 	}
@@ -495,7 +496,7 @@ func UpdateProfile(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
 		return
 	}
-	userID := userIDVal.(uint)
+	userID := userIDVal.(uuid.UUID)
 
 	var input struct {
 		Name     *string   `json:"name"`
@@ -560,7 +561,7 @@ func GetLastCheckin(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
 		return
 	}
-	userID := userIDVal.(uint)
+	userID := userIDVal.(uuid.UUID)
 
 	var lastCheckin models.VolunteerCheckin
 	err := db.Where("user_id = ?", userID).

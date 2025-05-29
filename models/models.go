@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -32,7 +33,7 @@ func (r RolesArray) Value() (driver.Value, error) {
 }
 
 type User struct {
-	ID        uint       `gorm:"primaryKey"`
+	ID        uuid.UUID  `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
 	Name      string     `gorm:"not null"`
 	Email     string     `gorm:"not null;unique"`
 	Roles     RolesArray `gorm:"type:json"`
@@ -44,7 +45,7 @@ type User struct {
 
 type VolunteerCheckin struct {
 	ID          uint      `gorm:"primaryKey"`
-	UserID      uint      `gorm:"not null"`
+	UserID      uuid.UUID `gorm:"not null"`
 	CheckinTime time.Time `gorm:"autoCreateTime"`
 }
 
