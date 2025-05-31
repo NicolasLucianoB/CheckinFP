@@ -2,3 +2,6 @@
 checkin.db
 qrcodes/
 .env
+node_modules/
+package-lock.json/
+yarn.lock/
