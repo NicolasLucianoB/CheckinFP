@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -84,4 +85,121 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 		"last_checkin":        lastCheckin,
 		"ranking_position":    rankingPosition,
 	})
+}
+
+func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
+	period := c.DefaultQuery("period", "monthly")
+	scope := c.DefaultQuery("scope", "team")
+
+	type PunctualityEntry struct {
+		ID         uuid.UUID
+		Name       string
+		Checkins   int
+		Punctual   int
+		Percentage float64
+	}
+
+	// Define time filters
+	now := time.Now()
+	var startDate time.Time
+	switch period {
+	case "monthly":
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	case "last_event":
+		// Para simplificar, considera último domingo como último evento
+		offset := int(now.Weekday())
+		startDate = now.AddDate(0, 0, -offset)
+	case "total":
+		startDate = time.Time{} // sem filtro
+	default:
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	}
+
+	// Define os horários ideais por dia da semana
+	idealTimes := map[time.Weekday][]time.Time{
+		time.Sunday: {
+			time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC),
+			time.Date(0, 1, 1, 17, 0, 0, 0, time.UTC),
+		},
+		time.Monday: {
+			time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC),
+		},
+		time.Tuesday: {
+			time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC),
+		},
+		time.Wednesday: {
+			time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC),
+		},
+		time.Thursday: {
+			time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC),
+		},
+		time.Friday: {
+			time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC),
+		},
+		time.Saturday: {
+			time.Date(0, 1, 1, 18, 0, 0, 0, time.UTC),
+		},
+	}
+
+	var checkins []models.VolunteerCheckin
+	query := db.Preload("User").Where("checkin_time >= ?", startDate)
+	if scope == "individual" {
+		userIDVal, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
+			return
+		}
+		userID := userIDVal.(uuid.UUID)
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.Find(&checkins).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
+		return
+	}
+
+	punctualityMap := map[uuid.UUID]*PunctualityEntry{}
+
+	for _, checkin := range checkins {
+		userID := checkin.UserID
+		if _, ok := punctualityMap[userID]; !ok {
+			punctualityMap[userID] = &PunctualityEntry{
+				ID:       userID,
+				Name:     checkin.User.Name,
+				Checkins: 0,
+				Punctual: 0,
+			}
+		}
+
+		p := punctualityMap[userID]
+		p.Checkins++
+
+		// Verifica pontualidade
+		ideals, ok := idealTimes[checkin.CheckinTime.Weekday()]
+		if ok {
+			for _, ideal := range ideals {
+				scheduled := time.Date(checkin.CheckinTime.Year(), checkin.CheckinTime.Month(), checkin.CheckinTime.Day(),
+					ideal.Hour(), ideal.Minute(), 0, 0, checkin.CheckinTime.Location())
+
+				if checkin.CheckinTime.Before(scheduled) || checkin.CheckinTime.Equal(scheduled) {
+					p.Punctual++
+					break
+				}
+			}
+		}
+	}
+
+	var ranking []PunctualityEntry
+	for _, p := range punctualityMap {
+		if p.Checkins > 0 {
+			p.Percentage = (float64(p.Punctual) / float64(p.Checkins)) * 100
+		}
+		ranking = append(ranking, *p)
+	}
+
+	// Ordena por pontualidade
+	sort.Slice(ranking, func(i, j int) bool {
+		return ranking[i].Percentage > ranking[j].Percentage
+	})
+
+	c.JSON(http.StatusOK, gin.H{"ranking": ranking})
 }
