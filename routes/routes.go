@@ -40,4 +40,5 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	// Dashboard
 	auth.GET("/dashboard", func(c *gin.Context) { controllers.GetVolunteerDashboardData(c, db) })
 	auth.GET("/dashboard/punctuality-ranking", func(c *gin.Context) { controllers.GetPunctualityRanking(c, db) })
+	auth.GET("/dashboard/roles-distribution", func(c *gin.Context) { controllers.GetRolesDistribution(c, db) })
 }

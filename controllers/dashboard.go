@@ -87,6 +87,49 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	})
 }
 
+func GetRolesDistribution(c *gin.Context, db *gorm.DB) {
+	type RolePercentage struct {
+		Role       string  `json:"role"`
+		Percentage float64 `json:"percentage"`
+		Count      int     `json:"count"`
+	}
+
+	var users []models.User
+	if err := db.Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar usuários"})
+		return
+	}
+
+	totalUsers := len(users)
+	if totalUsers == 0 {
+		c.JSON(http.StatusOK, []RolePercentage{})
+		return
+	}
+
+	roleMap := make(map[string]int)
+	for _, user := range users {
+		seen := make(map[string]bool)
+		for _, role := range user.Roles {
+			if !seen[role] {
+				roleMap[role]++
+				seen[role] = true
+			}
+		}
+	}
+
+	var distribution []RolePercentage
+	for role, count := range roleMap {
+		percentage := (float64(count) / float64(totalUsers)) * 100
+		distribution = append(distribution, RolePercentage{
+			Role:       role,
+			Percentage: percentage,
+			Count:      count,
+		})
+	}
+
+	c.JSON(http.StatusOK, distribution)
+}
+
 func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
 	period := c.DefaultQuery("period", "monthly")
 	scope := c.DefaultQuery("scope", "team")
