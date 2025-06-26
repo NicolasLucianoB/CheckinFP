@@ -348,3 +348,72 @@ func GetPunctualityMeter(c *gin.Context, db *gorm.DB) {
 
 	c.JSON(http.StatusOK, gin.H{"average": average})
 }
+
+func GetCheckinScatterData(c *gin.Context, db *gorm.DB) {
+	period := c.DefaultQuery("period", "monthly")
+	scope := c.DefaultQuery("scope", "team")
+
+	now := time.Now()
+	var startDate time.Time
+	switch period {
+	case "monthly":
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	case "last_event":
+		var lastCheckin models.VolunteerCheckin
+		if err := db.Order("checkin_time DESC").First(&lastCheckin).Error; err == nil {
+			startDate = lastCheckin.CheckinTime.Truncate(24 * time.Hour)
+		} else {
+			startDate = now.AddDate(0, 0, -7)
+		}
+	case "total":
+		startDate = time.Time{}
+	default:
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	}
+
+	var checkins []models.VolunteerCheckin
+	query := db.Preload("User").Where("checkin_time >= ?", startDate)
+
+	if scope == "individual" {
+		userIDVal, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
+			return
+		}
+		userID := userIDVal.(uuid.UUID)
+		query = query.Where("user_id = ?", userID)
+	}
+
+	if err := query.Find(&checkins).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
+		return
+	}
+
+	type ScatterPoint struct {
+		DayIndex    int    `json:"day_index"`
+		TimeMinutes int    `json:"time_minutes"`
+		Weekday     string `json:"weekday"`
+		DisplayTime string `json:"display_time"`
+		User        string `json:"user"`
+		AvatarURL   string `json:"avatar_url"`
+		Date        string `json:"date"`
+	}
+
+	var data []ScatterPoint
+	for _, ci := range checkins {
+		t := ci.CheckinTime
+		hour, min := t.Hour(), t.Minute()
+		weekday := t.Weekday()
+		data = append(data, ScatterPoint{
+			DayIndex:    int(weekday),
+			TimeMinutes: hour*60 + min,
+			Weekday:     weekday.String(),
+			DisplayTime: t.Format("15:04"),
+			User:        ci.User.Name,
+			AvatarURL:   ci.User.PhotoURL,
+			Date:        t.Format("02/01/2006"),
+		})
+	}
+
+	c.JSON(http.StatusOK, data)
+}
