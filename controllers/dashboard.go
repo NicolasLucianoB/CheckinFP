@@ -130,6 +130,53 @@ func GetRolesDistribution(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, distribution)
 }
 
+type PunctualitySummary struct {
+	Total    int
+	Punctual int
+}
+
+func calculatePunctualitySummaries(checkins []models.VolunteerCheckin, idealTimes map[time.Weekday][]time.Time) map[uuid.UUID]*PunctualitySummary {
+	summaryMap := make(map[uuid.UUID]*PunctualitySummary)
+
+	for _, checkin := range checkins {
+		userID := checkin.UserID
+		if _, ok := summaryMap[userID]; !ok {
+			summaryMap[userID] = &PunctualitySummary{}
+		}
+		entry := summaryMap[userID]
+		entry.Total++
+
+		ideals, ok := idealTimes[checkin.CheckinTime.Weekday()]
+		if ok {
+			for _, ideal := range ideals {
+				scheduled := time.Date(checkin.CheckinTime.Year(), checkin.CheckinTime.Month(), checkin.CheckinTime.Day(),
+					ideal.Hour(), ideal.Minute(), 0, 0, checkin.CheckinTime.Location())
+
+				diff := scheduled.Sub(checkin.CheckinTime)
+
+				if diff >= 45*time.Minute {
+					entry.Punctual++
+					break
+				}
+			}
+		}
+	}
+
+	return summaryMap
+}
+
+func getIdealTimes() map[time.Weekday][]time.Time {
+	return map[time.Weekday][]time.Time{
+		time.Sunday:    {time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), time.Date(0, 1, 1, 17, 0, 0, 0, time.UTC)},
+		time.Monday:    {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
+		time.Tuesday:   {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
+		time.Wednesday: {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
+		time.Thursday:  {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
+		time.Friday:    {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
+		time.Saturday:  {time.Date(0, 1, 1, 18, 0, 0, 0, time.UTC)},
+	}
+}
+
 func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
 	period := c.DefaultQuery("period", "monthly")
 	scope := c.DefaultQuery("scope", "team")
@@ -162,15 +209,7 @@ func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	}
 
-	idealTimes := map[time.Weekday][]time.Time{
-		time.Sunday:    {time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), time.Date(0, 1, 1, 17, 0, 0, 0, time.UTC)},
-		time.Monday:    {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
-		time.Tuesday:   {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
-		time.Wednesday: {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
-		time.Thursday:  {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
-		time.Friday:    {time.Date(0, 1, 1, 19, 0, 0, 0, time.UTC)},
-		time.Saturday:  {time.Date(0, 1, 1, 18, 0, 0, 0, time.UTC)},
-	}
+	idealTimes := getIdealTimes()
 
 	var checkins []models.VolunteerCheckin
 	query := db.Preload("User").Where("checkin_time >= ?", startDate)
@@ -254,4 +293,58 @@ func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ranking": ranking})
+}
+
+func GetPunctualityMeter(c *gin.Context, db *gorm.DB) {
+	period := c.DefaultQuery("period", "monthly")
+
+	now := time.Now()
+	var startDate time.Time
+	switch period {
+	case "monthly":
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	case "last_event":
+		var lastCheckin models.VolunteerCheckin
+		if err := db.Order("checkin_time DESC").First(&lastCheckin).Error; err == nil {
+			startDate = lastCheckin.CheckinTime.Truncate(24 * time.Hour)
+		} else {
+			startDate = now.AddDate(0, 0, -7)
+		}
+	case "total":
+		startDate = time.Time{}
+	default:
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	}
+
+	idealTimes := getIdealTimes()
+
+	var checkins []models.VolunteerCheckin
+	if err := db.Preload("User").Where("checkin_time >= ?", startDate).Find(&checkins).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar check-ins"})
+		return
+	}
+
+	if len(checkins) == 0 {
+		c.JSON(http.StatusOK, gin.H{"average": 0})
+		return
+	}
+
+	summaryMap := calculatePunctualitySummaries(checkins, idealTimes)
+
+	var totalPercentage float64
+	var counted int
+	for _, summary := range summaryMap {
+		if summary.Total > 0 {
+			percentage := float64(summary.Punctual) / float64(summary.Total) * 100
+			totalPercentage += percentage
+			counted++
+		}
+	}
+
+	var average float64
+	if counted > 0 {
+		average = totalPercentage / float64(counted)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"average": average})
 }
