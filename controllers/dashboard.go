@@ -35,8 +35,9 @@ func GetVolunteerDashboardData(c *gin.Context, db *gorm.DB) {
 	var checkinsThisMonth int
 
 	if len(checkins) > 0 {
-		first := checkins[len(checkins)-1].CheckinTime
-		last := checkins[0].CheckinTime
+		location, _ := time.LoadLocation("America/Sao_Paulo")
+		first := checkins[len(checkins)-1].CheckinTime.In(location)
+		last := checkins[0].CheckinTime.In(location)
 		firstCheckin = &first
 		lastCheckin = &last
 
@@ -233,9 +234,11 @@ func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
+	location, _ := time.LoadLocation("America/Sao_Paulo")
 	punctualityMap := make(map[uuid.UUID]*PunctualityEntry)
 
 	for _, checkin := range checkins {
+		checkinTime := checkin.CheckinTime.In(location)
 		userID := checkin.UserID
 		if _, ok := punctualityMap[userID]; !ok {
 			punctualityMap[userID] = &PunctualityEntry{
@@ -249,13 +252,13 @@ func GetPunctualityRanking(c *gin.Context, db *gorm.DB) {
 		entry := punctualityMap[userID]
 		entry.Checkins++
 
-		ideals, ok := idealTimes[checkin.CheckinTime.Weekday()]
+		ideals, ok := idealTimes[checkinTime.Weekday()]
 		if ok {
 			for _, ideal := range ideals {
-				scheduled := time.Date(checkin.CheckinTime.Year(), checkin.CheckinTime.Month(), checkin.CheckinTime.Day(),
-					ideal.Hour(), ideal.Minute(), 0, 0, checkin.CheckinTime.Location())
+				scheduled := time.Date(checkinTime.Year(), checkinTime.Month(), checkinTime.Day(),
+					ideal.Hour(), ideal.Minute(), 0, 0, checkinTime.Location())
 
-				diff := scheduled.Sub(checkin.CheckinTime)
+				diff := scheduled.Sub(checkinTime)
 
 				switch {
 				case diff >= 45*time.Minute:
@@ -329,6 +332,10 @@ func GetPunctualityMeter(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
+	location, _ := time.LoadLocation("America/Sao_Paulo")
+	for i := range checkins {
+		checkins[i].CheckinTime = checkins[i].CheckinTime.In(location)
+	}
 	summaryMap := calculatePunctualitySummaries(checkins, idealTimes)
 
 	var totalPercentage float64
@@ -399,9 +406,10 @@ func GetCheckinScatterData(c *gin.Context, db *gorm.DB) {
 		Date        string `json:"date"`
 	}
 
+	location, _ := time.LoadLocation("America/Sao_Paulo")
 	var data []ScatterPoint
 	for _, ci := range checkins {
-		t := ci.CheckinTime
+		t := ci.CheckinTime.In(location)
 		hour, min := t.Hour(), t.Minute()
 		weekday := t.Weekday()
 		data = append(data, ScatterPoint{
