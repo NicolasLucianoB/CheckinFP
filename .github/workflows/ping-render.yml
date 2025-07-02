@@ -1,0 +1,18 @@
+name: Ping Render CheckinFP
+
+on:
+  schedule:
+    # Domingo - 12 em 12 minutos (0 = domingo)
+    - cron: '*/12 * * * 0'
+    # Segunda a sexta das 10h às 22h (1-5 = seg a sex)
+    - cron: '*/12 11-23 * * 1-5'
+    # Sábado - 12 em 12 minutos (6 = sábado)
+    - cron: '*/12 * * * 6'
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render App
+        run: |
+          curl -s https://checkinfp-backend.onrender.com/
