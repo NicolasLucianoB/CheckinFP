@@ -26,9 +26,19 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
-		token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			return jwtKey, nil
 		})
+
+		if err != nil {
+			if err == jwt.ErrTokenExpired {
+				c.JSON(http.StatusUnauthorized, gin.H{"message": "Sessão expirada"})
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{"message": "Token inválido"})
+			}
+			c.Abort()
+			return
+		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			userIDStr := claims["user_id"].(string)

@@ -18,7 +18,7 @@ var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 func GenerateToken(userID uint) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		"exp":     time.Now().Add(time.Hour * 3).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtKey)
@@ -86,10 +86,17 @@ func Login(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "*Senha errada, irmão(ã)"})
 		return
 	}
+	var expiration time.Time
+	if user.IsAdmin {
+		expiration = time.Now().AddDate(0, 1, 0) // 1 mês
+	} else {
+		expiration = time.Now().Add(time.Hour * 3) // 3 horas
+	}
+
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,
 		"is_admin": user.IsAdmin,
-		"exp":      time.Now().Add(time.Hour * 72).Unix(),
+		"exp":      expiration.Unix(),
 	}
 	tokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	token, err := tokenObj.SignedString(jwtKey)

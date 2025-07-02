@@ -425,3 +425,33 @@ func GetCheckinScatterData(c *gin.Context, db *gorm.DB) {
 
 	c.JSON(http.StatusOK, data)
 }
+
+func GetCheckinHistory(c *gin.Context, db *gorm.DB) {
+	var checkins []models.VolunteerCheckin
+	if err := db.Preload("User").Order("checkin_time DESC").Find(&checkins).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao buscar histórico de check-ins"})
+		return
+	}
+
+	location, _ := time.LoadLocation("America/Sao_Paulo")
+
+	type CheckinRecord struct {
+		ID   string `json:"id"`
+		User string `json:"user"`
+		Date string `json:"date"`
+		Time string `json:"time"`
+	}
+
+	var history []CheckinRecord
+	for _, ci := range checkins {
+		t := ci.CheckinTime.In(location)
+		history = append(history, CheckinRecord{
+			ID:   ci.ID.String(),
+			User: ci.User.Name,
+			Date: t.Format("02/01/2006"),
+			Time: t.Format("15:04"),
+		})
+	}
+
+	c.JSON(http.StatusOK, history)
+}

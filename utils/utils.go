@@ -24,7 +24,7 @@ var JwtKey = []byte(os.Getenv("JWT_SECRET"))
 func GenerateToken(userID uuid.UUID) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID.String(),
-		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		"exp":     time.Now().Add(time.Hour * 3).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(JwtKey)
