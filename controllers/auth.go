@@ -1,6 +1,10 @@
 package controllers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -8,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/nicolaslucianob/checkinfp/models"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -115,4 +120,157 @@ func Login(c *gin.Context, db *gorm.DB) {
 			"photo_url": user.PhotoURL,
 		},
 	})
+}
+
+func generateResetToken(userID uuid.UUID) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID.String(),
+		"exp":     time.Now().Add(15 * time.Minute).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtKey)
+}
+
+func sendResetEmail(email string, token string) error {
+	brevoAPIKey := os.Getenv("BREVO_API_KEY")
+	brevoSenderName := os.Getenv("BREVO_NAME")
+	brevoSenderEmail := os.Getenv("BREVO_SENDER_EMAIL")
+
+	if brevoAPIKey == "" {
+		return fmt.Errorf("BREVO_API_KEY não configurada")
+	}
+
+	body := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  brevoSenderName,
+			"email": brevoSenderEmail,
+		},
+		"to": []map[string]string{
+			{"email": email},
+		},
+		"subject": "Recuperação de Senha - CheckinFP",
+		"htmlContent": fmt.Sprintf(`
+			<p>Olá, irmão!(ã)</p>
+			<p>O atribulado esqueceu a senha e solicitou uma redefinição? Clique no botão abaixo:</p>
+			<p><a href="https://checkin-fp.vercel.app/reset-password?token=%s">Redefinir senha</a></p>
+			<p>Vigia, esse link expira em 15 minutos.</p>
+		`, token),
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("api-key", brevoAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted && res.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("erro ao enviar e-mail: status %d, resposta: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+func ForgotPassword(c *gin.Context, db *gorm.DB) {
+	var input struct {
+		Email string `json:"email"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil || input.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Email inválido, irmão(ã)"})
+		return
+	}
+
+	var user models.User
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Enviaremos um link para redefinir sua senha, irmão(ã)."})
+		return
+	}
+
+	token, err := generateResetToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao gerar token"})
+		return
+	}
+
+	if err := sendResetEmail(user.Email, token); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao enviar e-mail"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Enviaremos um link para redefinir sua senha, irmão(ã)."})
+}
+
+func ResetPassword(c *gin.Context, db *gorm.DB) {
+	var input struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil || input.Token == "" || input.NewPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Dados inválidos"})
+		return
+	}
+
+	token, err := jwt.Parse(input.Token, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("método de assinatura inválido")
+		}
+		return jwtKey, nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Token inválido ou expirado, irmão(ã)"})
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || claims["user_id"] == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Oremos...Token inválido"})
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "ID do voluntário inválido"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Erro ao processar ID do voluntário"})
+		return
+	}
+
+	var user models.User
+	if err := db.First(&user, "id = ?", userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Voluntário não encontrado"})
+		return
+	}
+
+	hashedPassword, err := HashPassword(input.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao criptografar nova senha"})
+		return
+	}
+
+	user.Password = hashedPassword
+	if err := db.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Erro ao salvar nova senha"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Senha redefinida com sucesso, irmão(ã)"})
 }

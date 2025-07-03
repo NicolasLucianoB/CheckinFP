@@ -11,6 +11,8 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	// Public Routes
 	r.POST("/signup", func(c *gin.Context) { controllers.SignUp(c, db) })
 	r.POST("/login", func(c *gin.Context) { controllers.Login(c, db) })
+	r.POST("/forgot-password", func(c *gin.Context) { controllers.ForgotPassword(c, db) })
+	r.POST("/reset-password", func(c *gin.Context) { controllers.ResetPassword(c, db) })
 
 	// r.GET("/generate/qr", controllers.GenerateQRCode) // Public route for QR code generation
 
