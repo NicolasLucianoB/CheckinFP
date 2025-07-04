@@ -196,7 +196,7 @@ func ForgotPassword(c *gin.Context, db *gorm.DB) {
 
 	var user models.User
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "Enviaremos um link para redefinir sua senha, irmão(ã)."})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "*Email não encontrado, irmão(ã)"})
 		return
 	}
 
