@@ -1,10 +1,11 @@
-# CheckinFP Backend - API for Volunteer Check-in
+# ✅ CheckinFP Backend – Volunteer Check-in API
 
-**CheckinFP Backend** is a RESTful API built with **Go** using the **Gin Gonic** framework. It handles generating a unique QR code per service, validating volunteer check-ins, and managing attendance data.
+**CheckinFP Backend** is a RESTful API built with **Go** using the **Gin Gonic** framework. It powers the volunteer check-in system for the Media Ministry at Família Plena Church. The API generates unique QR codes per service, validates volunteer check-ins, and manages attendance data securely.
 
 ## 🚀 Features
 
 - User authentication with JWT tokens  
+- Password reset via email using secure token links (powered by Resend and React Email)
 - Generate a unique QR code per day (manual trigger by admin)  
 - Store the QR code in Cloudinary and cache its URL in Redis  
 - Register check-ins via secure QR scan flow  
@@ -22,6 +23,7 @@
 - **Gin Middleware** (for logging and authentication)  
 - **go-qrcode** (QR Code generation)  
 - **Supabase** (for authentication and RLS policies)  
+- **Resend + React Email** (for password reset email delivery)
 
 ## 📦 How to Run the Project Locally
 
@@ -78,10 +80,12 @@ go run main.go
 
 The server will be accessible at `http://localhost:8080`.
 
-### 6. API Endpoints
+### 6. API Endpoints (final version)
 
 - **POST /signup** – Register a new user  
 - **POST /login** – Login and receive JWT  
+- **POST /forgot-password** – Send password reset email  
+- **POST /reset-password** – Set new password using secure token  
 - **GET /generate/qr** – Admin-only: generate a new QR Code  
 - **POST /generate/qr/reset** – Admin-only: delete today's cached QR Code  
 - **POST /checkin** – Make check-in using scanned token  
@@ -89,12 +93,12 @@ The server will be accessible at `http://localhost:8080`.
 - **GET /ranking** – Show ranking based on attendance  
 - **GET /me** – Authenticated user info  
 
-## 🛠 Planned Improvements
+## 🛠 Next Steps (post-MVP)
 
-- Dashboard integration using Power BI or similar  
-- Enhanced token/session handling for QR validation  
-- Expanded analytics endpoints  
-- Improved logs and observability  
+- Performance audits and profiling
+- Background tasks for QR expiration and cleanup
+- WebSocket or SSE for real-time dashboard updates
+- Refactor services into a clean-layered architecture
 
 ## 🌐 Deployment
 
@@ -104,4 +108,4 @@ The server will be accessible at `http://localhost:8080`.
 
 ---
 
-📌 **Project Status**: *MVP functional and under active improvement*
+📌 **Project Status**: *Final MVP completed — used in production, maintained by admin*
